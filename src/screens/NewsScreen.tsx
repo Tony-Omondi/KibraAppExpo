@@ -1,3 +1,4 @@
+// === 📁 src/screens/NewsScreen.tsx ===
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,24 +11,23 @@ import {
 } from 'react-native';
 import { getPosts } from '../api/api';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
 
-const NewsScreen = ({ navigation }) => {
-  const [posts, setPosts] = useState([]);
+const NewsScreen = ({ navigation }: any) => {
+  const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
-  const loadFonts = async () => {
-    await Font.loadAsync({
-      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
-    });
-    setFontsLoaded(true);
-  };
-
   useEffect(() => {
-    loadFonts();
-    fetchPosts();
+    const loadResources = async () => {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../../assets/fonts/NotoSans-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+      fetchPosts();
+    };
+
+    loadResources();
   }, []);
 
   const fetchPosts = async () => {
@@ -37,14 +37,14 @@ const NewsScreen = ({ navigation }) => {
       console.log('API Response:', JSON.stringify(response.data, null, 2));
       setPosts(response.data);
       setLoading(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('API Error:', err.message, err.response?.data);
       setError('Failed to load news. Please try again.');
       setLoading(false);
     }
   };
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: any) => (
     <View style={styles.postContainer}>
       <Text style={styles.postTitle}>{item.title || 'No Title'}</Text>
       <Text style={styles.postContent}>{item.content || 'No Content'}</Text>
@@ -52,7 +52,11 @@ const NewsScreen = ({ navigation }) => {
   );
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#94e0b2" />
+      </View>
+    );
   }
 
   if (loading) {

@@ -5,13 +5,13 @@ import {
   Animated,
   Image,
   Text,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
-import AppLoading from 'expo-app-loading';
 
 const SplashScreen = () => {
   const navigation = useNavigation();
@@ -20,10 +20,12 @@ const SplashScreen = () => {
   const gradientAnim = useRef(new Animated.Value(0)).current;
 
   const [fontsLoaded] = useFonts({
-    'PlusJakartaSans-Bold': require('../assets/fonts/PlusJakartaSans-Bold.ttf'),
+    'PlusJakartaSans-Bold': require('../../assets/fonts/PlusJakartaSans-Bold.ttf'),
   });
 
   useEffect(() => {
+    if (!fontsLoaded) return;
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -53,7 +55,7 @@ const SplashScreen = () => {
     const timeout = setTimeout(checkLogin, 2500);
 
     return () => clearTimeout(timeout);
-  }, [fadeAnim, scaleAnim, navigation]);
+  }, [fadeAnim, scaleAnim, navigation, fontsLoaded]);
 
   const translateX = gradientAnim.interpolate({
     inputRange: [0, 1],
@@ -61,7 +63,11 @@ const SplashScreen = () => {
   });
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#94e0b2" />
+      </View>
+    );
   }
 
   return (
@@ -73,7 +79,7 @@ const SplashScreen = () => {
         ]}
       >
         <Image
-          source={require('../assets/logo.png')}
+          source={require('../../assets/logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />

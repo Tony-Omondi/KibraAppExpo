@@ -12,7 +12,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { forgotPassword, resetPassword } from '../api/api';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
 
 const ForgotPasswordScreen = () => {
   const navigation = useNavigation();
@@ -30,7 +29,7 @@ const ForgotPasswordScreen = () => {
   useEffect(() => {
     async function loadFonts() {
       await Font.loadAsync({
-        'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+        'NotoSans-Regular': require('../../assets/fonts/SpaceMono-Regular.ttf'),
       });
       setFontsLoaded(true);
     }
@@ -38,7 +37,7 @@ const ForgotPasswordScreen = () => {
   }, []);
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return null;
   }
 
   const validateEmail = (email) => {
@@ -113,7 +112,7 @@ const ForgotPasswordScreen = () => {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/logo.png')}
+        source={require('../../assets/logo.png')}
         style={styles.logo}
         resizeMode="contain"
       />

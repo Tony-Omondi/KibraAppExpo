@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// === 📁 src/screens/VerifyEmailScreen.tsx ===
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -9,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import * as Font from 'expo-font';
 import { verifyEmail, resendVerificationCode } from '../api/api';
 
 const VerifyEmailScreen = () => {
@@ -16,6 +18,17 @@ const VerifyEmailScreen = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../../assets/fonts/SpaceMono-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+    }
+    loadFonts();
+  }, []);
 
   const handleVerifyEmail = async () => {
     if (!verificationCode) {
@@ -25,9 +38,14 @@ const VerifyEmailScreen = () => {
 
     try {
       setLoading(true);
-      const response = await verifyEmail({ verification_code: verificationCode });
+      const response = await verifyEmail({
+        verification_code: verificationCode,
+      });
       setLoading(false);
-      Alert.alert('Success', response.data.message || 'Email verified successfully!');
+      Alert.alert(
+        'Success',
+        response.data.message || 'Email verified successfully!'
+      );
       navigation.navigate('Login');
     } catch (err) {
       setLoading(false);
@@ -55,9 +73,20 @@ const VerifyEmailScreen = () => {
     } catch (err) {
       setLoading(false);
       console.error(err.response?.data || err.message);
-      Alert.alert('Error', 'Could not resend verification code. Try again.');
+      Alert.alert(
+        'Error',
+        'Could not resend verification code. Try again.'
+      );
     }
   };
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#94e0b2" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -84,7 +113,7 @@ const VerifyEmailScreen = () => {
       <TouchableOpacity
         style={[
           styles.button,
-          !verificationCode && { opacity: 0.5 },
+          (!verificationCode || loading) && { opacity: 0.5 },
         ]}
         disabled={!verificationCode || loading}
         onPress={handleVerifyEmail}
@@ -107,6 +136,8 @@ const VerifyEmailScreen = () => {
   );
 };
 
+export default VerifyEmailScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -114,6 +145,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#141f18',
   },
   title: {
     color: '#94e0b2',
@@ -165,6 +202,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 0.15,
+    fontFamily: 'NotoSans-Regular',
   },
   linkButton: {
     marginTop: 16,
@@ -176,5 +214,3 @@ const styles = StyleSheet.create({
     fontFamily: 'NotoSans-Regular',
   },
 });
-
-export default VerifyEmailScreen;

@@ -1,3 +1,4 @@
+// === 📁 src/screens/ProfileScreen.tsx ===
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,25 +13,24 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
-  const loadFonts = async () => {
-    await Font.loadAsync({
-      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
-    });
-    setFontsLoaded(true);
-  };
-
   useEffect(() => {
-    loadFonts();
-    fetchUserProfile();
+    const loadResources = async () => {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../../assets/fonts/NotoSans-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+      fetchUserProfile();
+    };
+
+    loadResources();
   }, []);
 
   const fetchUserProfile = async () => {
@@ -41,11 +41,10 @@ const ProfileScreen = () => {
         setLoading(false);
         return;
       }
-      // Update your URL if necessary:
       const response = await api.get(`accounts/users/${userId}/`);
       setUser(response.data);
       setLoading(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err.response?.data || err.message);
       setError('Failed to load profile');
       setLoading(false);
@@ -67,12 +66,16 @@ const ProfileScreen = () => {
   };
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#94e0b2" />
+      </View>
+    );
   }
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#94e0b2" />
       </View>
     );
@@ -95,11 +98,7 @@ const ProfileScreen = () => {
   return (
     <View style={styles.container}>
       <Image
-        source={
-          require('../assets/logo.png')
-          // or replace with user.avatar if you implement profile pictures:
-          // user.avatar ? { uri: user.avatar } : require('../assets/logo.png')
-        }
+        source={require('../../assets/logo.png')}
         style={styles.profileImage}
         resizeMode="contain"
       />
@@ -138,6 +137,12 @@ const ProfileScreen = () => {
 export default ProfileScreen;
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#141f18',
+  },
   container: {
     flex: 1,
     backgroundColor: '#141f18',

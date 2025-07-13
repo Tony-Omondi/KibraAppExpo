@@ -12,7 +12,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { login, googleLogin } from '../api/api';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
 import * as AuthSession from 'expo-auth-session';
 import { GOOGLE_CLIENT_ID } from '../utils/constants';
 
@@ -23,11 +22,10 @@ const LoginScreen = () => {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({ username: false, password: false });
 
-  // Load fonts
   useEffect(() => {
     async function loadFonts() {
       await Font.loadAsync({
-        'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+        'NotoSans-Regular': require('../../assets/fonts/SpaceMono-Regular.ttf'),
       });
       setFontsLoaded(true);
     }
@@ -35,7 +33,7 @@ const LoginScreen = () => {
   }, []);
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return null;
   }
 
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -98,7 +96,7 @@ const LoginScreen = () => {
       });
 
       if (result?.type === 'success') {
-        const idToken = result.params.access_token; // Use access_token as id_token only if your backend expects it
+        const idToken = result.params.access_token;
         const res = await googleLogin(idToken);
         await AsyncStorage.setItem('access_token', res.data.access);
         await AsyncStorage.setItem('refresh_token', res.data.refresh);
@@ -117,7 +115,7 @@ const LoginScreen = () => {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/logo.png')}
+        source={require('../../assets/logo.png')}
         style={styles.logo}
         resizeMode="contain"
       />

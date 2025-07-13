@@ -1,3 +1,4 @@
+// === 📁 src/screens/SignUpScreen.tsx ===
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,14 +13,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { register, googleLogin } from '../api/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GoogleSignin, GoogleSigninButton } from '@react-native-google-signin/google-signin';
-import { GOOGLE_CLIENT_ID } from '../utils/constants';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
-
-GoogleSignin.configure({
-  webClientId: GOOGLE_CLIENT_ID,
-});
+import * as AuthSession from 'expo-auth-session';
+import { GOOGLE_CLIENT_ID } from '../utils/constants';
 
 const SignUpScreen = () => {
   const navigation = useNavigation();
@@ -39,7 +35,7 @@ const SignUpScreen = () => {
 
   const loadFonts = async () => {
     await Font.loadAsync({
-      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+      'NotoSans-Regular': require('../../assets/fonts/SpaceMono-Regular.ttf'),
     });
     setFontsLoaded(true);
   };
@@ -149,15 +145,35 @@ const SignUpScreen = () => {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const res = await googleLogin(userInfo.idToken);
-      await AsyncStorage.setItem('access_token', res.data.access);
-      await AsyncStorage.setItem('refresh_token', res.data.refresh);
-      await AsyncStorage.setItem('user_id', res.data.user.id.toString());
-      setLoading(false);
-      Alert.alert('Success', 'Logged in with Google!');
-      navigation.replace('Profile');
+
+      const redirectUri = AuthSession.makeRedirectUri({
+        useProxy: true,
+      });
+
+      const authUrl =
+        `https://accounts.google.com/o/oauth2/v2/auth` +
+        `?client_id=${GOOGLE_CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=token` +
+        `&scope=profile email`;
+
+      const result = await AuthSession.startAsync({ authUrl });
+
+      if (result.type === 'success') {
+        const idToken = result.params.access_token;
+        const res = await googleLogin(idToken);
+
+        await AsyncStorage.setItem('access_token', res.data.access);
+        await AsyncStorage.setItem('refresh_token', res.data.refresh);
+        await AsyncStorage.setItem('user_id', res.data.user.id.toString());
+
+        setLoading(false);
+        Alert.alert('Success', 'Logged in with Google!');
+        navigation.replace('Profile');
+      } else {
+        setLoading(false);
+        Alert.alert('Google Login Cancelled');
+      }
     } catch (err) {
       console.error(err.response?.data || err.message);
       setLoading(false);
@@ -166,13 +182,17 @@ const SignUpScreen = () => {
   };
 
   if (!fontsLoaded) {
-    return <AppLoading />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#94e0b2" />
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/logo.png')}
+        source={require('../../assets/logo.png')}
         style={styles.logo}
         resizeMode="contain"
       />
@@ -241,12 +261,12 @@ const SignUpScreen = () => {
             <Text style={styles.buttonText}>Login</Text>
           </TouchableOpacity>
 
-          <GoogleSigninButton
+          <TouchableOpacity
             style={styles.googleButton}
-            size={GoogleSigninButton.Size.Wide}
-            color={GoogleSigninButton.Color.Dark}
             onPress={handleGoogleLogin}
-          />
+          >
+            <Text style={styles.buttonText}>Continue with Google</Text>
+          </TouchableOpacity>
         </>
       )}
     </View>
@@ -262,6 +282,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#141f18',
   },
   logo: {
     width: 160,
@@ -293,16 +319,21 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 12,
   },
+  googleButton: {
+    backgroundColor: '#2a4133',
+    width: '100%',
+    maxWidth: 480,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 24,
+    marginTop: 16,
+  },
   buttonText: {
-    color: '#141f18',
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 0.15,
     fontFamily: 'NotoSans-Regular',
-  },
-  googleButton: {
-    width: 192,
-    height: 48,
-    marginTop: 16,
   },
 });
