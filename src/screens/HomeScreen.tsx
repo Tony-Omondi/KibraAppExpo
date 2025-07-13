@@ -1,73 +1,88 @@
+// src/screens/HomeScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
   ScrollView,
-  ImageBackground,
-  TouchableOpacity,
   Alert,
   ActivityIndicator,
   Image,
+  ImageBackground,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
+import { getPosts, getAds } from '../api/api';
 
-const dummyFeed = [
-  {
-    id: '1',
-    type: 'post',
-    title: 'Kibra Youth Empowerment Program',
-    date: '2d',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAnSQXXu6y2Jt4ZF1ocw4laLObjg-pOvI35FSIchQZ8JOJk_Q5V2KJlcvynI6CwFBUfZm8jkaa0bRdsHNt3YYRW5sKidgCAbZ-31rM3PWXokCreUzz3k39QtvykO6IYQSeNML6ITqBE1cZZUwjoYjKwaei6sdS355xnnkWfu0pOuTooO1e_1Lxzh64UAMxvjnIdNU0mnPr3xHmPb4AECv8DxQKquTFcyGBssvLNLGLy8XNjqnQT79IkEwbtoSJ2HstwW8Z5RB1ECnym',
-    content:
-      'Join us for a workshop on digital skills and entrepreneurship. Learn how to leverage technology for personal and community growth.',
-    likes: 23,
-    comments: 5,
-  },
-  {
-    id: 'ad-1',
-    type: 'ad',
-    title: 'Sponsored: Local Business Spotlight',
-    date: '3d',
-    avatar:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB2aSo3YDSMAyPHvoTYzAR6oExy5d__22nebHpqRSAWFf5tNZxe6QS4Y6sl1sxSHAbpjCq_TKEwtshMlD0sGyGCM61OevaKtrnG8XHXGD9gaVAfZcL-lnu9UOYSbZjpH1EnB8R3JpJhOCVQyR3kRw2XsXqu83PNZFsVL8faLCiZZiGFuZuDl23q1u-zm5Qb10v6BzuSN936V8beYtTYD5_11Qosms4EBNXRLUoXeQyeByuNoX5p0dqTk3lvkwjhuAgmFAY9B3VLuPEB',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAqvF6p-NkBvS_qcLZkf6s6mCX1sHvrclTXkpoQVxIIsOjtRmUjVKEVp2-_4CFA9KRz7HPxxaesfIJ6zcahM5MUBjNSDCsfDxea9Q16p_WgMw223Q9yYoMguU1TDwCVDBVzRDOa83l-1QLfXN4Br__R0_0jycQLNC-E2KjDL_z3e-cuFpu03KegykIDCzk1mtQKfrupYUkdYYHsv0c3BjvUCmNG1QgXzOmRlS-d_SaNcpp36Lg4aBFcKhLy8tlvTssu-7rKltB3K0sv',
-    content:
-      'Support local businesses in Kibra. Check out the latest offers from our community entrepreneurs.',
-    likes: 35,
-    comments: 8,
-  },
-  {
-    id: '2',
-    type: 'post',
-    title: 'Community Clean-Up Drive',
-    date: '1d',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDladBUbiBPV0nVpiEWko9qFASEGP5zdbbfXAXi4CEsmoudU9VHpKX6bhzDaHgOZpP5mLGs0cdnIH9p7NsD6Myw3jIQWlbN4pEXp_OWy4zhReEXY7biCTitCktm586jTpdkuX1I3kREiPg1knxws7PRambJaSsc4jh7qELs94s-RlIqQa2El3cQj24SDMJosXBrZc0EoPfB6rO-cZ3_0yjm8yoIJK2fCQWc1BTMFguebkYBtil7EUSqU01vLFT1y3xJWftiYFvVFQO4',
-    content:
-      'Let\'s keep Kibra clean! Join our community clean-up drive this Saturday. Gloves and bags will be provided.',
-    likes: 18,
-    comments: 3,
-  },
-];
+interface User {
+  name?: string;
+  profile_image?: string;
+}
+
+interface Post {
+  id: number;
+  user?: User;
+  created_at?: string;
+  image?: string;
+  content?: string;
+  likes_count?: number;
+  comments_count?: number;
+  is_ad?: boolean;
+}
 
 const HomeScreen = () => {
   const navigation = useNavigation();
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [ads, setAds] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    async function loadFonts() {
+    loadFonts();
+    fetchData();
+  }, []);
+
+  const loadFonts = async () => {
+    try {
       await Font.loadAsync({
         'NotoSans-Regular': require('../../assets/fonts/NotoSans-Regular.ttf'),
       });
       setFontsLoaded(true);
+    } catch (error) {
+      console.error('Error loading fonts:', error);
     }
-    loadFonts();
-  }, []);
+  };
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [postsResponse, adsResponse] = await Promise.all([
+        getPosts().catch(() => ({ data: [] })),
+        getAds().catch(() => ({ data: { ads: [] } })),
+      ]);
+      
+      setPosts(postsResponse?.data || []);
+      setAds(adsResponse?.data?.ads || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      Alert.alert('Error', 'Failed to load posts and ads');
+      setPosts([]);
+      setAds([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
 
   const handleLogout = async () => {
     try {
@@ -77,10 +92,118 @@ const HomeScreen = () => {
         routes: [{ name: 'Login' }],
       });
       Alert.alert('Logged out', 'You have been logged out.');
-    } catch (e) {
-      console.log(e);
-      Alert.alert('Error', 'Failed to logout');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to log out.');
     }
+  };
+
+  const formatTime = (dateString?: string) => {
+    if (!dateString) return 'Just now';
+    
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffInHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
+      
+      if (diffInHours < 24) {
+        return `${Math.floor(diffInHours)}h`;
+      } else {
+        return `${Math.floor(diffInHours / 24)}d`;
+      }
+    } catch {
+      return 'Just now';
+    }
+  };
+
+  const renderContent = () => {
+    if (loading && !refreshing) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#94e0b2" />
+        </View>
+      );
+    }
+
+    const mergedContent = [];
+    let postIndex = 0;
+    let adIndex = 0;
+    
+    while (postIndex < posts.length || adIndex < ads.length) {
+      if (postIndex < posts.length) {
+        mergedContent.push(renderPost(posts[postIndex], false));
+        postIndex++;
+      }
+      if (postIndex < posts.length) {
+        mergedContent.push(renderPost(posts[postIndex], false));
+        postIndex++;
+      }
+      
+      if (adIndex < ads.length) {
+        mergedContent.push(renderPost({ ...ads[adIndex], is_ad: true }, true));
+        adIndex++;
+      }
+    }
+
+    return mergedContent.length > 0 ? mergedContent : (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>No posts available</Text>
+      </View>
+    );
+  };
+
+  const renderPost = (post: Post, isAd: boolean) => {
+    if (!post) return null;
+
+    return (
+      <View key={post.id} style={styles.postContainer}>
+        <View style={styles.postHeader}>
+          <Image 
+            source={{ uri: post.user?.profile_image || 'https://via.placeholder.com/150' }} 
+            style={styles.profileImage}
+            defaultSource={require('../../assets/_.jpeg')}
+          />
+          <View style={styles.postHeaderText}>
+            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
+            <Text style={styles.postTime}>{formatTime(post.created_at)}</Text>
+          </View>
+          {isAd && (
+            <View style={styles.sponsoredBadge}>
+              <Text style={styles.sponsoredText}>Sponsored</Text>
+            </View>
+          )}
+        </View>
+
+        {post.image && (
+          <ImageBackground
+            source={{ uri: post.image }}
+            style={styles.postImage}
+            resizeMode="cover"
+          >
+            {isAd && (
+              <View style={styles.adLabel}>
+                <Text style={styles.adLabelText}>Ad</Text>
+              </View>
+            )}
+          </ImageBackground>
+        )}
+
+        {post.content && (
+          <Text style={styles.postContent}>{post.content}</Text>
+        )}
+
+        <View style={styles.postActions}>
+          <View style={styles.actionButton}>
+            <Ionicons name="heart-outline" size={24} color="#94e0b2" />
+            <Text style={styles.actionText}>{post.likes_count || 0}</Text>
+          </View>
+          <View style={styles.actionButton}>
+            <Ionicons name="chatbubble-outline" size={24} color="#94e0b2" />
+            <Text style={styles.actionText}>{post.comments_count || 0}</Text>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   if (!fontsLoaded) {
@@ -93,192 +216,207 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Home</Text>
-      <ScrollView>
-        {dummyFeed.map((item) =>
-          item.type === 'post' ? (
-            <View key={item.id} style={styles.postCard}>
-              <ImageBackground
-                source={{ uri: item.image }}
-                style={styles.postImage}
-                imageStyle={{ borderRadius: 12 }}
-              />
-              <Text style={styles.postTitle}>{item.title}</Text>
-              <Text style={styles.postDate}>{item.date}</Text>
-              <Text style={styles.postContent}>{item.content}</Text>
-              <View style={styles.reactions}>
-                <Text style={styles.reactionText}>❤️ {item.likes}</Text>
-                <Text style={styles.reactionText}>💬 {item.comments}</Text>
-              </View>
-            </View>
-          ) : (
-            <View key={item.id} style={styles.adCard}>
-              <View style={styles.adHeader}>
-                <Image source={{ uri: item.avatar }} style={styles.avatar} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.adTitle}>{item.title}</Text>
-                  <Text style={styles.adDate}>{item.date}</Text>
-                </View>
-              </View>
-              <ImageBackground
-                source={{ uri: item.image }}
-                style={styles.adImage}
-                imageStyle={{ borderRadius: 0 }}
-              />
-              <Text style={styles.adContent}>{item.content}</Text>
-              <View style={styles.reactions}>
-                <Text style={styles.reactionText}>❤️ {item.likes}</Text>
-                <Text style={styles.reactionText}>💬 {item.comments}</Text>
-              </View>
-            </View>
-          )
-        )}
-      </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Messages')}>
-          <Text style={styles.navText}>Messages</Text>
+      <View style={styles.topHeader}>
+        <Ionicons name="menu" size={24} color="white" />
+        <Text style={styles.headerTitle}>Kibra</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={24} color="white" />
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      <ScrollView 
+        style={styles.postsContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#94e0b2']}
+            tintColor="#94e0b2"
+          />
+        }
+      >
+        {renderContent()}
+      </ScrollView>
+
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navButtonActive}>
+          <Ionicons name="home" size={24} color="white" />
+          <Text style={styles.navTextActive}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton}>
+          <Ionicons name="newspaper-outline" size={24} color="#94e0b2" />
+          <Text style={styles.navText}>News</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton}>
+          <Ionicons name="notifications-outline" size={24} color="#94e0b2" />
+          <Text style={styles.navText}>Notifications</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton}>
+          <Ionicons name="person-outline" size={24} color="#94e0b2" />
+          <Text style={styles.navText}>Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
-
-export default HomeScreen;
 
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#122118',
+    backgroundColor: '#141f18',
   },
   container: {
     flex: 1,
-    backgroundColor: '#122118',
-    paddingTop: 40,
-    paddingHorizontal: 16,
+    backgroundColor: '#141f18',
   },
-  header: {
-    color: '#fff',
-    fontSize: 24,
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyStateText: {
+    color: '#94e0b2',
+    fontSize: 16,
+    fontFamily: 'NotoSans-Regular',
+  },
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#122118',
+    borderBottomWidth: 1,
+    borderBottomColor: '#264532',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: 18,
     fontWeight: 'bold',
     fontFamily: 'NotoSans-Regular',
-    marginBottom: 16,
-    alignSelf: 'center',
   },
-  postCard: {
-    backgroundColor: '#2a4133',
-    borderRadius: 12,
+  postsContainer: {
+    flex: 1,
+    marginBottom: 60,
+  },
+  postContainer: {
     marginBottom: 16,
+    backgroundColor: '#122118',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 12,
+  },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    backgroundColor: '#2a4133',
+  },
+  postHeaderText: {
+    flex: 1,
+  },
+  username: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: 'NotoSans-Regular',
+  },
+  postTime: {
+    color: '#94e0b2',
+    fontSize: 14,
+    fontFamily: 'NotoSans-Regular',
+  },
+  sponsoredBadge: {
+    backgroundColor: '#2a4133',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sponsoredText: {
+    color: '#94e0b2',
+    fontSize: 12,
+    fontFamily: 'NotoSans-Regular',
   },
   postImage: {
     width: '100%',
-    height: 200,
-    marginBottom: 8,
+    aspectRatio: 3/2,
+    justifyContent: 'flex-end',
+    backgroundColor: '#2a4133',
   },
-  postTitle: {
-    color: '#94e0b2',
-    fontSize: 18,
-    fontFamily: 'NotoSans-Regular',
-    fontWeight: 'bold',
+  adLabel: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    margin: 8,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
-  postDate: {
-    color: '#96c5a9',
+  adLabelText: {
+    color: 'white',
     fontSize: 12,
-    marginBottom: 8,
     fontFamily: 'NotoSans-Regular',
   },
   postContent: {
-    color: '#fff',
+    color: 'white',
     fontSize: 14,
-    fontFamily: 'NotoSans-Regular',
-    marginBottom: 8,
-  },
-  adCard: {
-    backgroundColor: '#122118',
-    marginBottom: 20,
-  },
-  adHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-  },
-  adTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'NotoSans-Regular',
-    fontWeight: 'bold',
-  },
-  adDate: {
-    color: '#96c5a9',
-    fontSize: 12,
-    fontFamily: 'NotoSans-Regular',
-  },
-  adImage: {
-    width: '100%',
-    height: 200,
-  },
-  adContent: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: 'NotoSans-Regular',
     padding: 12,
+    fontFamily: 'NotoSans-Regular',
   },
-  reactions: {
+  postActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingBottom: 12,
   },
-  reactionText: {
-    color: '#96c5a9',
-    fontSize: 14,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionText: {
+    color: '#94e0b2',
+    fontSize: 13,
+    fontWeight: 'bold',
     fontFamily: 'NotoSans-Regular',
   },
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#2a4133',
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginVertical: 16,
+    backgroundColor: '#1b3124',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#264532',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  navButton: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  navButtonActive: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
   navText: {
     color: '#94e0b2',
-    fontSize: 16,
+    fontSize: 12,
+    marginTop: 4,
     fontFamily: 'NotoSans-Regular',
   },
-  logoutButton: {
-    backgroundColor: '#94e0b2',
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 48,
-    marginBottom: 20,
-  },
-  logoutText: {
-    color: '#141f18',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 0.15,
+  navTextActive: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
     fontFamily: 'NotoSans-Regular',
   },
 });
+
+export default HomeScreen;
