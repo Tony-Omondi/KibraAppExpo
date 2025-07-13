@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,57 +11,55 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { login, googleLogin } from '../api/api';
-import { GoogleSignin, GoogleSigninButton } from '@react-native-google-signin/google-signin';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
+import * as AuthSession from 'expo-auth-session';
 import { GOOGLE_CLIENT_ID } from '../utils/constants';
-
-GoogleSignin.configure({
-  webClientId: GOOGLE_CLIENT_ID,
-});
 
 const LoginScreen = () => {
   const navigation = useNavigation();
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState({
-    username: false,
-    password: false,
-  });
+  const [errors, setErrors] = useState({ username: false, password: false });
 
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  };
+  // Load fonts
+  useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+    }
+    loadFonts();
+  }, []);
 
-  const validatePhone = (phone) => {
-    const re = /^[0-9]{10,15}$/;
-    return re.test(phone);
-  };
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
+
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validatePhone = (phone) => /^[0-9]{10,15}$/.test(phone);
 
   const handleLogin = async () => {
     let isValid = true;
     const newErrors = { username: false, password: false };
 
-    // Username validation (can be email or phone)
     if (!username) {
       newErrors.username = true;
       Alert.alert('Error', 'Username/Email/Phone is required');
       isValid = false;
     } else if (username.includes('@') && !validateEmail(username)) {
       newErrors.username = true;
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert('Error', 'Invalid email address');
       isValid = false;
     } else if (!isNaN(username) && !validatePhone(username)) {
       newErrors.username = true;
-      Alert.alert('Error', 'Please enter a valid phone number (10-15 digits)');
+      Alert.alert('Error', 'Invalid phone number');
       isValid = false;
     }
 
-    // Password validation
-    if (!password) {
-      newErrors.password = true;
-      Alert.alert('Error', 'Password is required');
-      isValid = false;
-    } else if (password.length < 8) {
+    if (!password || password.length < 8) {
       newErrors.password = true;
       Alert.alert('Error', 'Password must be at least 8 characters');
       isValid = false;
@@ -77,33 +75,42 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('access_token', res.data.access);
       await AsyncStorage.setItem('refresh_token', res.data.refresh);
       await AsyncStorage.setItem('user_id', res.data.user.id.toString());
-      Alert.alert('Success', 'You are now logged in!');
-      navigation.replace('Profile'); // Changed to Profile for consistency
+      Alert.alert('Success', 'Logged in successfully!');
+      navigation.replace('Profile');
     } catch (err) {
       console.error(err.response?.data || err.message);
       let errorMessage = 'Check your credentials';
-      if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err.response?.data?.non_field_errors) {
-        errorMessage = err.response.data.non_field_errors.join('\n');
-      }
+      if (err.response?.data?.detail) errorMessage = err.response.data.detail;
       Alert.alert('Login Failed', errorMessage);
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const res = await googleLogin(userInfo.idToken);
-      await AsyncStorage.setItem('access_token', res.data.access);
-      await AsyncStorage.setItem('refresh_token', res.data.refresh);
-      await AsyncStorage.setItem('user_id', res.data.user.id.toString());
-      Alert.alert('Success', 'Logged in with Google!');
-      navigation.replace('Profile'); // Changed to Profile for consistency
+      const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+      const result = await AuthSession.startAsync({
+        authUrl:
+          `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `&client_id=${GOOGLE_CLIENT_ID}` +
+          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&response_type=token` +
+          `&scope=profile%20email`,
+      });
+
+      if (result?.type === 'success') {
+        const idToken = result.params.access_token; // Use access_token as id_token only if your backend expects it
+        const res = await googleLogin(idToken);
+        await AsyncStorage.setItem('access_token', res.data.access);
+        await AsyncStorage.setItem('refresh_token', res.data.refresh);
+        await AsyncStorage.setItem('user_id', res.data.user.id.toString());
+        Alert.alert('Success', 'Logged in with Google!');
+        navigation.replace('Profile');
+      } else {
+        Alert.alert('Google Login Cancelled');
+      }
     } catch (err) {
-      console.error(err.response?.data || err.message);
-      Alert.alert('Google Login Failed', 'Try again');
+      console.error('Google Login Error:', err);
+      Alert.alert('Google Login Failed', 'Please try again.');
     }
   };
 
@@ -122,7 +129,7 @@ const LoginScreen = () => {
         value={username}
         onChangeText={(text) => {
           setUsername(text);
-          setErrors({...errors, username: false});
+          setErrors({ ...errors, username: false });
         }}
       />
 
@@ -133,14 +140,14 @@ const LoginScreen = () => {
         value={password}
         onChangeText={(text) => {
           setPassword(text);
-          setErrors({...errors, password: false});
+          setErrors({ ...errors, password: false });
         }}
         secureTextEntry
       />
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.forgotPassword}
-        onPress={() => navigation.navigate('ForgotPassword')} // Make sure you have this screen set up
+        onPress={() => navigation.navigate('ForgotPassword')}
       >
         <Text style={styles.forgotText}>Forgot Password?</Text>
       </TouchableOpacity>
@@ -156,15 +163,14 @@ const LoginScreen = () => {
         <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
 
-      <GoogleSigninButton
-        style={styles.googleButton}
-        size={GoogleSigninButton.Size.Wide}
-        color={GoogleSigninButton.Color.Dark}
-        onPress={handleGoogleLogin}
-      />
+      <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
+        <Text style={styles.buttonText}>Continue with Google</Text>
+      </TouchableOpacity>
     </View>
   );
 };
+
+export default LoginScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -204,16 +210,21 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 12,
   },
+  googleButton: {
+    backgroundColor: '#2a4133',
+    width: '100%',
+    maxWidth: 480,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 24,
+    marginTop: 12,
+  },
   buttonText: {
-    color: '#141f18',
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 0.15,
-  },
-  googleButton: {
-    width: 192,
-    height: 48,
-    marginTop: 16,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
@@ -225,5 +236,3 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 });
-
-export default LoginScreen;

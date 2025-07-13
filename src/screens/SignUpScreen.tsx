@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -7,12 +7,15 @@ import {
   StyleSheet,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { register, googleLogin } from '../api/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin, GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { GOOGLE_CLIENT_ID } from '../utils/constants';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 GoogleSignin.configure({
   webClientId: GOOGLE_CLIENT_ID,
@@ -25,12 +28,25 @@ const SignUpScreen = () => {
   const [email, setEmail] = useState('');
   const [password1, setPassword1] = useState('');
   const [password2, setPassword2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [errors, setErrors] = useState({
     username: false,
     email: false,
     password1: false,
     password2: false,
   });
+
+  const loadFonts = async () => {
+    await Font.loadAsync({
+      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+    });
+    setFontsLoaded(true);
+  };
+
+  useEffect(() => {
+    loadFonts();
+  }, []);
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,87 +66,108 @@ const SignUpScreen = () => {
       password2: false,
     };
 
+    let validationErrors = [];
+
     if (!username) {
       newErrors.username = true;
-      Alert.alert('Error', 'Username is required');
+      validationErrors.push('Username is required.');
       isValid = false;
     } else if (username.length < 4) {
       newErrors.username = true;
-      Alert.alert('Error', 'Username must be at least 4 characters');
+      validationErrors.push('Username must be at least 4 characters.');
       isValid = false;
     }
 
     if (!email) {
       newErrors.email = true;
-      Alert.alert('Error', 'Email is required');
+      validationErrors.push('Email is required.');
       isValid = false;
     } else if (!validateEmail(email)) {
       newErrors.email = true;
-      Alert.alert('Error', 'Please enter a valid email address');
+      validationErrors.push('Please enter a valid email address.');
       isValid = false;
     }
 
     if (!password1) {
       newErrors.password1 = true;
-      Alert.alert('Error', 'Password is required');
+      validationErrors.push('Password is required.');
       isValid = false;
     } else if (!validatePassword(password1)) {
       newErrors.password1 = true;
-      Alert.alert('Error', 'Password must be at least 8 characters');
+      validationErrors.push('Password must be at least 8 characters.');
       isValid = false;
     }
 
     if (password1 !== password2) {
       newErrors.password2 = true;
-      Alert.alert('Error', 'Passwords do not match');
+      validationErrors.push('Passwords do not match.');
       isValid = false;
     }
 
     if (!isValid) {
       setErrors(newErrors);
+      Alert.alert('Validation Error', validationErrors.join('\n'));
       return;
     }
 
     try {
+      setLoading(true);
       await register(username, email, password1, password2);
+      setLoading(false);
       Alert.alert('Success', 'Account created! Check your email to verify.');
       navigation.navigate('VerifyEmail');
     } catch (err) {
       console.error(err.response?.data || err.message);
-      let errorMessage = 'Registration failed. Please check your details.';
+      setLoading(false);
+
+      let errorMessages = [];
 
       if (err.response?.data) {
         const data = err.response.data;
         if (data.username) {
-          errorMessage = `Username: ${data.username.join(' ')}`;
-        } else if (data.email) {
-          errorMessage = `Email: ${data.email.join(' ')}`;
-        } else if (data.password1) {
-          errorMessage = `Password: ${data.password1.join(' ')}`;
-        } else if (data.non_field_errors) {
-          errorMessage = data.non_field_errors.join('\n');
+          errorMessages.push(`Username: ${data.username.join(' ')}`);
+        }
+        if (data.email) {
+          errorMessages.push(`Email: ${data.email.join(' ')}`);
+        }
+        if (data.password1) {
+          errorMessages.push(`Password: ${data.password1.join(' ')}`);
+        }
+        if (data.non_field_errors) {
+          errorMessages.push(data.non_field_errors.join('\n'));
         }
       }
 
-      Alert.alert('Registration Failed', errorMessage);
+      if (errorMessages.length === 0) {
+        errorMessages.push('Registration failed. Please check your details.');
+      }
+
+      Alert.alert('Registration Failed', errorMessages.join('\n'));
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
+      setLoading(true);
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
       const res = await googleLogin(userInfo.idToken);
       await AsyncStorage.setItem('access_token', res.data.access);
       await AsyncStorage.setItem('refresh_token', res.data.refresh);
       await AsyncStorage.setItem('user_id', res.data.user.id.toString());
+      setLoading(false);
       Alert.alert('Success', 'Logged in with Google!');
-      navigation.replace('Profile'); // Changed to Profile for consistency
+      navigation.replace('Profile');
     } catch (err) {
       console.error(err.response?.data || err.message);
-      Alert.alert('Google Login Failed', 'Try again');
+      setLoading(false);
+      Alert.alert('Google Login Failed', 'Try again.');
     }
   };
+
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
   return (
     <View style={styles.container}>
@@ -149,6 +186,7 @@ const SignUpScreen = () => {
           setUsername(text);
           setErrors({ ...errors, username: false });
         }}
+        autoCapitalize="none"
       />
 
       <TextInput
@@ -188,26 +226,34 @@ const SignUpScreen = () => {
         }}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Register</Text>
-      </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator size="large" color="#94e0b2" style={{ marginVertical: 16 }} />
+      ) : (
+        <>
+          <TouchableOpacity style={styles.button} onPress={handleRegister}>
+            <Text style={styles.buttonText}>Register</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('Login')}
-      >
-        <Text style={styles.buttonText}>Login</Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.buttonText}>Login</Text>
+          </TouchableOpacity>
 
-      <GoogleSigninButton
-        style={styles.googleButton}
-        size={GoogleSigninButton.Size.Wide}
-        color={GoogleSigninButton.Color.Dark}
-        onPress={handleGoogleLogin}
-      />
+          <GoogleSigninButton
+            style={styles.googleButton}
+            size={GoogleSigninButton.Size.Wide}
+            color={GoogleSigninButton.Color.Dark}
+            onPress={handleGoogleLogin}
+          />
+        </>
+      )}
     </View>
   );
 };
+
+export default SignUpScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -252,6 +298,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 0.15,
+    fontFamily: 'NotoSans-Regular',
   },
   googleButton: {
     width: 192,
@@ -259,5 +306,3 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 });
-
-export default SignUpScreen;

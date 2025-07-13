@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// === 📁 src/screens/ForgotPasswordScreen.js ===
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -10,18 +11,35 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { forgotPassword, resetPassword } from '../api/api';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 const ForgotPasswordScreen = () => {
   const navigation = useNavigation();
-  const [step, setStep] = useState(1); // 1: Enter Email, 2: Enter Code and New Password
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [errors, setErrors] = useState({
     email: false,
     verificationCode: false,
     newPassword: false,
   });
+
+  useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+    }
+    loadFonts();
+  }, []);
+
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -75,7 +93,11 @@ const ForgotPasswordScreen = () => {
     }
 
     try {
-      await resetPassword({ email, verification_code: verificationCode, new_password: newPassword });
+      await resetPassword({
+        email,
+        verification_code: verificationCode,
+        new_password: newPassword,
+      });
       Alert.alert('Success', 'Password reset successfully!');
       navigation.navigate('Login');
     } catch (err) {

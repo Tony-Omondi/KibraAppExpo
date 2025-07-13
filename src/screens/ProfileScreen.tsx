@@ -6,37 +6,69 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  const loadFonts = async () => {
+    await Font.loadAsync({
+      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+    });
+    setFontsLoaded(true);
+  };
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const userId = await AsyncStorage.getItem('user_id');
-        if (!userId) {
-          setError('User not logged in');
-          setLoading(false);
-          return;
-        }
-        const response = await api.get(`users/${userId}/`);
-        setUser(response.data);
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to load profile');
-        setLoading(false);
-        console.error(err.response?.data || err.message);
-      }
-    };
+    loadFonts();
     fetchUserProfile();
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('user_id');
+      if (!userId) {
+        setError('User not logged in');
+        setLoading(false);
+        return;
+      }
+      // Update your URL if necessary:
+      const response = await api.get(`accounts/users/${userId}/`);
+      setUser(response.data);
+      setLoading(false);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      setError('Failed to load profile');
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.clear();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      Alert.alert('Logged out', 'You have been logged out.');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to log out.');
+    }
+  };
+
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
   if (loading) {
     return (
@@ -63,10 +95,15 @@ const ProfileScreen = () => {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../assets/logo.png')} // Replace with profile pic if available later
+        source={
+          require('../assets/logo.png')
+          // or replace with user.avatar if you implement profile pictures:
+          // user.avatar ? { uri: user.avatar } : require('../assets/logo.png')
+        }
         style={styles.profileImage}
         resizeMode="contain"
       />
+
       <Text style={styles.title}>Welcome, {user.username}!</Text>
       <Text style={styles.info}>Email: {user.email}</Text>
       <Text style={styles.info}>Role: {user.role}</Text>
@@ -76,19 +113,29 @@ const ProfileScreen = () => {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate('EditProfile')} // Placeholder for edit screen
+        onPress={() => navigation.navigate('EditProfile')}
       >
         <Text style={styles.buttonText}>Edit Profile</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate('Home')} // Placeholder for home/dashboard
+        onPress={() => navigation.navigate('Home')}
       >
         <Text style={styles.buttonText}>Go to Home</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.logoutButton]}
+        onPress={handleLogout}
+      >
+        <Text style={styles.buttonText}>Logout</Text>
       </TouchableOpacity>
     </View>
   );
 };
+
+export default ProfileScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -138,7 +185,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 0.15,
+    fontFamily: 'NotoSans-Regular',
+  },
+  logoutButton: {
+    backgroundColor: '#ff4d4f',
   },
 });
-
-export default ProfileScreen;

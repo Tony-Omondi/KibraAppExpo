@@ -6,14 +6,16 @@ import {
   Text,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { verifyEmail } from '../api/api';
+import { verifyEmail, resendVerificationCode } from '../api/api';
 
 const VerifyEmailScreen = () => {
   const navigation = useNavigation();
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleVerifyEmail = async () => {
     if (!verificationCode) {
@@ -22,17 +24,38 @@ const VerifyEmailScreen = () => {
     }
 
     try {
+      setLoading(true);
       const response = await verifyEmail({ verification_code: verificationCode });
+      setLoading(false);
       Alert.alert('Success', response.data.message || 'Email verified successfully!');
-      navigation.navigate('Login'); // Or wherever you want
+      navigation.navigate('Login');
     } catch (err) {
+      setLoading(false);
       console.error(err.response?.data || err.message);
       let errorMessage = 'Verification failed. Please check the code.';
-      if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
+      const data = err.response?.data;
+      if (data?.error) {
+        errorMessage = data.error;
+      } else if (data?.detail) {
+        errorMessage = data.detail;
+      } else if (typeof data === 'object') {
+        errorMessage = Object.values(data).flat().join('\n');
       }
       setError(errorMessage);
       Alert.alert('Verification Failed', errorMessage);
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      setLoading(true);
+      await resendVerificationCode();
+      setLoading(false);
+      Alert.alert('Success', 'A new code has been sent to your email.');
+    } catch (err) {
+      setLoading(false);
+      console.error(err.response?.data || err.message);
+      Alert.alert('Error', 'Could not resend verification code. Try again.');
     }
   };
 
@@ -58,13 +81,25 @@ const VerifyEmailScreen = () => {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.button} onPress={handleVerifyEmail}>
-        <Text style={styles.buttonText}>Verify</Text>
+      <TouchableOpacity
+        style={[
+          styles.button,
+          !verificationCode && { opacity: 0.5 },
+        ]}
+        disabled={!verificationCode || loading}
+        onPress={handleVerifyEmail}
+      >
+        {loading ? (
+          <ActivityIndicator color="#141f18" />
+        ) : (
+          <Text style={styles.buttonText}>Verify</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.linkButton}
-        onPress={() => navigation.navigate('SignUp')}
+        onPress={handleResendCode}
+        disabled={loading}
       >
         <Text style={styles.linkText}>Resend Code</Text>
       </TouchableOpacity>

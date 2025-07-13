@@ -1,11 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  Button,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
 import { getPosts } from '../api/api';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 const NewsScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  const loadFonts = async () => {
+    await Font.loadAsync({
+      'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+    });
+    setFontsLoaded(true);
+  };
+
+  useEffect(() => {
+    loadFonts();
+    fetchPosts();
+  }, []);
 
   const fetchPosts = async () => {
     try {
@@ -21,10 +44,6 @@ const NewsScreen = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-    fetchPosts();
-  }, []);
-
   const renderItem = ({ item }) => (
     <View style={styles.postContainer}>
       <Text style={styles.postTitle}>{item.title || 'No Title'}</Text>
@@ -32,10 +51,14 @@ const NewsScreen = ({ navigation }) => {
     </View>
   );
 
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
+
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#94e0b2" />
       </View>
     );
   }
@@ -45,11 +68,13 @@ const NewsScreen = ({ navigation }) => {
       <View style={styles.container}>
         <Text style={styles.title}>Kibra Community News</Text>
         <Text style={styles.error}>{error}</Text>
-        <Button title="Retry" onPress={fetchPosts} />
-        <Button
-          title="Login to Post"
+        <Button title="Retry" onPress={fetchPosts} color="#94e0b2" />
+        <TouchableOpacity
+          style={styles.button}
           onPress={() => navigation.navigate('Login')}
-        />
+        >
+          <Text style={styles.buttonText}>Login to Post</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -59,10 +84,12 @@ const NewsScreen = ({ navigation }) => {
       <View style={styles.container}>
         <Text style={styles.title}>Kibra Community News</Text>
         <Text style={styles.empty}>No posts available</Text>
-        <Button
-          title="Login to Post"
+        <TouchableOpacity
+          style={styles.button}
           onPress={() => navigation.navigate('Login')}
-        />
+        >
+          <Text style={styles.buttonText}>Login to Post</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -73,36 +100,92 @@ const NewsScreen = ({ navigation }) => {
       <FlatList
         data={posts}
         renderItem={renderItem}
-        keyExtractor={(item) => (item.id ? item.id.toString() : Math.random().toString())}
+        keyExtractor={(item) =>
+          item.id ? item.id.toString() : Math.random().toString()
+        }
         style={styles.list}
       />
-      <Button
-        title="Login to Post"
+      <TouchableOpacity
+        style={styles.button}
         onPress={() => navigation.navigate('Login')}
-      />
+      >
+        <Text style={styles.buttonText}>Login to Post</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#f5f5f5' },
-  title: { fontSize: 24, marginBottom: 20, textAlign: 'center', fontWeight: 'bold' },
-  list: { flex: 1 },
-  postContainer: {
-    padding: 15,
-    marginVertical: 8,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  postTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
-  postContent: { fontSize: 14, color: '#333' },
-  error: { fontSize: 16, color: 'red', textAlign: 'center', marginBottom: 10 },
-  empty: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 10 },
-});
-
 export default NewsScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#141f18',
+    padding: 16,
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#141f18',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    color: '#94e0b2',
+    fontSize: 24,
+    marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: 'NotoSans-Regular',
+    fontWeight: 'bold',
+  },
+  list: {
+    flex: 1,
+  },
+  postContainer: {
+    backgroundColor: '#2a4133',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+  },
+  postTitle: {
+    color: '#94e0b2',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    fontFamily: 'NotoSans-Regular',
+  },
+  postContent: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: 'NotoSans-Regular',
+  },
+  error: {
+    color: '#ff4d4f',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 10,
+    fontFamily: 'NotoSans-Regular',
+  },
+  empty: {
+    color: '#ffffff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 10,
+    fontFamily: 'NotoSans-Regular',
+  },
+  button: {
+    backgroundColor: '#94e0b2',
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 48,
+    marginTop: 16,
+  },
+  buttonText: {
+    color: '#141f18',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.15,
+    fontFamily: 'NotoSans-Regular',
+  },
+});

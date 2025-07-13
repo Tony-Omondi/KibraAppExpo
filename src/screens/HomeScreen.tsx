@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,26 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Font from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync({
+        'NotoSans-Regular': require('../assets/fonts/NotoSans-Regular.ttf'),
+      });
+      setFontsLoaded(true);
+    }
+    loadFonts();
+  }, []);
+
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
   const handleLogout = async () => {
     try {
@@ -60,7 +77,7 @@ const HomeScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation.navigate('Messages')}
+          onPress={() => navigation.navigate('Messages')} // Make sure this exists
         >
           <Text style={styles.navText}>Messages</Text>
         </TouchableOpacity>
@@ -93,7 +110,7 @@ const styles = StyleSheet.create({
   },
   postsContainer: {
     flex: 1,
-    marginBottom: 80, // extra space for bottom nav
+    marginBottom: 80,
   },
   postCard: {
     backgroundColor: '#2a4133',

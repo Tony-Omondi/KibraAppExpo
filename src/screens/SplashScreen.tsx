@@ -5,18 +5,23 @@ import {
   Animated,
   Image,
   Text,
-  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import MaskedView from '@react-native-masked-view/masked-view';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts } from 'expo-font';
+import AppLoading from 'expo-app-loading';
 
 const SplashScreen = () => {
   const navigation = useNavigation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const gradientAnim = useRef(new Animated.Value(0)).current;
+
+  const [fontsLoaded] = useFonts({
+    'PlusJakartaSans-Bold': require('../assets/fonts/PlusJakartaSans-Bold.ttf'),
+  });
 
   useEffect(() => {
     Animated.parallel([
@@ -32,7 +37,6 @@ const SplashScreen = () => {
       }),
     ]).start();
 
-    // Animate gradient movement
     Animated.loop(
       Animated.timing(gradientAnim, {
         toValue: 1,
@@ -41,16 +45,24 @@ const SplashScreen = () => {
       })
     ).start();
 
-    setTimeout(async () => {
+    const checkLogin = async () => {
       const token = await AsyncStorage.getItem('access_token');
       navigation.replace(token ? 'Home' : 'Login');
-    }, 4000);
+    };
+
+    const timeout = setTimeout(checkLogin, 2500);
+
+    return () => clearTimeout(timeout);
   }, [fadeAnim, scaleAnim, navigation]);
 
   const translateX = gradientAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-200, 200],
+    outputRange: [-400, 400],
   });
+
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
   return (
     <View style={styles.container}>
@@ -87,6 +99,8 @@ const SplashScreen = () => {
   );
 };
 
+export default SplashScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -109,7 +123,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontFamily: 'PlusJakartaSans-Bold',
     letterSpacing: 2,
-    color: 'black', // Needed for mask to work
+    color: 'white',
   },
   mask: {
     backgroundColor: 'transparent',
@@ -117,9 +131,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gradient: {
-    width: 400,
+    width: 1000,
     height: 50,
   },
 });
-
-export default SplashScreen;
