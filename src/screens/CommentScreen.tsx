@@ -21,8 +21,10 @@ interface User {
 
 interface UserProfile {
   id: number;
-  user: User;
+  user?: User;
+  user_data?: User; // Handle API's user_data field
   profile_image?: string;
+  profile_picture?: string; // Handle API's profile_picture
   bio?: string;
 }
 
@@ -40,6 +42,7 @@ interface Comment {
   user: Author;
   text: string;
   created_at: string;
+  post: number;
 }
 
 const CommentScreen = () => {
@@ -51,29 +54,44 @@ const CommentScreen = () => {
   const [profiles, setProfiles] = useState<Record<number, UserProfile>>({});
 
   useEffect(() => {
+    console.log('Fetching comments for postId:', postId);
     fetchComments();
-  }, []);
+  }, [postId]);
 
   const fetchComments = async () => {
     try {
+      setLoading(true);
       const response = await getCommentsForPost(postId);
-      const commentsData = response.data || [];
-      console.log('Comments Response:', commentsData);
+      const commentsData = Array.isArray(response.data) ? response.data : [];
+      console.log(`Comments Response for post ${postId}:`, commentsData);
       setComments(commentsData);
 
       const uniqueUserIds = [
-        ...new Set(commentsData.map((c: Comment) => c.user.id).filter(id => typeof id === 'number')),
+        ...new Set(commentsData.map((c: Comment) => c.user?.id).filter(id => typeof id === 'number')),
       ];
 
       const profs: Record<number, UserProfile> = {};
       const profilePromises = uniqueUserIds.map(async (userId: number) => {
-        const profileRes = await getProfileByUserId(userId);
-        profs[userId] = profileRes.data;
+        try {
+          const profileRes = await getProfileByUserId(userId);
+          console.log(`Profile for user ${userId} in comments:`, profileRes.data);
+          profs[userId] = profileRes.data;
+        } catch (error) {
+          console.error(`Error fetching profile for user ${userId} in comments:`, error);
+          profs[userId] = {
+            id: userId,
+            user: { id: userId, username: `Unknown User ${userId}`, email: '' },
+            profile_image: undefined,
+            bio: '',
+          };
+        }
       });
       await Promise.all(profilePromises);
+      console.log('Comment Profiles:', profs);
       setProfiles(profs);
     } catch (error) {
-      console.error('Error loading comments:', error);
+      console.error(`Error loading comments for post ${postId}:`, error);
+      setComments([]);
     } finally {
       setLoading(false);
     }
@@ -86,27 +104,46 @@ const CommentScreen = () => {
       setText('');
       fetchComments();
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('Error adding comment for post', postId, ':', error);
     }
   };
 
   const renderComment = ({ item }: { item: Comment }) => {
+    if (!item.user || !item.user.id) {
+      console.log('Skipping comment due to missing user:', item);
+      return null;
+    }
+
     const profile = profiles[item.user.id] || {
-      user: { id: item.user.id, username: item.user.username || 'Unknown User', email: item.user.email || '' },
+      id: item.user.id,
+      user: {
+        id: item.user.id,
+        username: item.user.username || `Unknown User ${item.user.id}`,
+        email: item.user.email || '',
+      },
       profile_image: undefined,
+      bio: '',
     };
+
+    const profileUser = profile.user_data || profile.user;
+    const profileImage = profile.profile_picture || profile.profile_image;
+
+    console.log(`Rendering comment ${item.id} for post ${item.post}, user:`, profileUser);
+
     return (
       <View style={styles.commentContainer}>
         <Image
           source={
-            profile.profile_image
-              ? { uri: profile.profile_image }
+            profileImage
+              ? { uri: profileImage }
               : require('../../assets/_.jpeg')
           }
           style={styles.avatar}
         />
         <View style={styles.commentContent}>
-          <Text style={styles.username}>{profile.user.username}</Text>
+          <Text style={styles.username}>
+            {profileUser?.username || item.user.username || `Unknown User ${item.user.id}`}
+          </Text>
           <Text style={styles.text}>{item.text}</Text>
         </View>
       </View>

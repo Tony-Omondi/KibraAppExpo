@@ -27,8 +27,10 @@ interface User {
 
 interface UserProfile {
   id: number;
-  user: User;
+  user?: User;
+  user_data?: User; // Handle API's user_data field
   profile_image?: string;
+  profile_picture?: string; // Handle API's profile_picture for user 39
   bio?: string;
 }
 
@@ -90,7 +92,7 @@ const HomeScreen = () => {
         id: userId,
         user: {
           id: userId,
-          username: 'Unknown User',
+          username: `Unknown User ${userId}`,
           email: '',
         },
         profile_image: undefined,
@@ -170,7 +172,7 @@ const HomeScreen = () => {
         likes_count: (ad.likes_count || 0) + (status === 'liked' ? 1 : -1) 
       } : ad));
     } catch (error) {
-      console.error('Error toggling like:', error);
+      console.error('Error toggling like for post', postId, ':', error);
       Alert.alert('Error', 'Failed to update like status');
     }
   };
@@ -262,11 +264,15 @@ const HomeScreen = () => {
       id: post.author.id,
       user: {
         id: post.author.id,
-        username: post.author.username || 'Unknown User',
+        username: post.author.username || `Unknown User ${post.author.id}`,
         email: post.author.email || '',
       },
       profile_image: undefined,
+      bio: '',
     };
+
+    const profileUser = userProfile.user_data || userProfile.user;
+    const profileImage = userProfile.profile_picture || userProfile.profile_image;
 
     console.log(`Rendering post ${post.id}, author ID: ${post.author.id}, profile:`, userProfile);
 
@@ -278,8 +284,8 @@ const HomeScreen = () => {
             onPress={() => navigation.navigate('Profile', { userId: post.author.id })}
           >
             <Image 
-              source={userProfile.profile_image 
-                ? { uri: userProfile.profile_image } 
+              source={profileImage 
+                ? { uri: profileImage } 
                 : require('../../assets/_.jpeg')
               }
               style={styles.profileImage}
@@ -287,7 +293,7 @@ const HomeScreen = () => {
           </TouchableOpacity>
           <View style={styles.postHeaderText}>
             <Text style={styles.username}>
-              {userProfile.user?.username || post.author.username || 'Unknown User'}
+              {profileUser?.username || post.author.username || `Unknown User ${post.author.id}`}
             </Text>
             <Text style={styles.postTime}>{formatTime(post.created_at)}</Text>
           </View>
