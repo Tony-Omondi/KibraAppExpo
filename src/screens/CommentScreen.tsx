@@ -104,12 +104,39 @@ const CommentScreen = () => {
       return;
     }
     try {
-      await addCommentToPost(postId, text.trim());
+      const response = await addCommentToPost(postId, text.trim());
+      console.log('Comment Creation Response:', {
+        status: response.status,
+        data: response.data,
+      });
       setText('');
       fetchComments();
+      Alert.alert('Success', 'Comment added successfully');
     } catch (error: any) {
-      console.error('Error adding comment for post', postId, ':', error);
-      Alert.alert('Error', `Failed to add comment: ${error.response?.data?.detail || 'Unknown error'}`);
+      console.error('Error adding comment for post', postId, ':', {
+        message: error.message,
+        response: error.response
+          ? {
+              status: error.response.status,
+              data: error.response.data,
+              headers: error.response.headers,
+            }
+          : 'No response',
+      });
+      // Only show error if the response status is not 201 (Created)
+      if (error.response?.status !== 201) {
+        const errorMessage = error.response?.data
+          ? typeof error.response.data === 'string'
+            ? error.response.data
+            : JSON.stringify(error.response.data)
+          : 'Failed to add comment, please try again';
+        Alert.alert('Error', errorMessage);
+      } else {
+        // Handle case where comment is created but network error occurs
+        setText('');
+        fetchComments();
+        Alert.alert('Success', 'Comment added, but network issue detected. Please refresh.');
+      }
     }
   };
 

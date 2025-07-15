@@ -84,7 +84,7 @@ export const getAds = () => api.get('ads/ads/');
 export const getCommentsForPost = (postId: number) =>
   api.get(`posts/comments/?post=${postId}`);
 export const addCommentToPost = (postId: number, text: string) =>
-  api.post('posts/comments/', { post_id: postId, text });
+  api.post('posts/comments/', { post: postId, text });
 export const toggleLike = (postId: number) =>
   api.post(`posts/likes/${postId}/toggle/`);
 
