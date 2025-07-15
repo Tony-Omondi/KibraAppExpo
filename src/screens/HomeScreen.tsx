@@ -1,4 +1,3 @@
-// src/screens/HomeScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -16,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
-import { getPosts, getAds, getProfileByUserId } from '../api/api';
+import api, { getPosts, getAds, getProfileByUserId, toggleLike } from '../api/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,15 +32,25 @@ interface UserProfile {
   bio?: string;
 }
 
+interface Author {
+  id: number;
+  username: string;
+  email: string;
+  is_email_verified: boolean;
+  role: string;
+  verification_code: string | null;
+}
+
 interface Post {
   id: number;
-  user: number; // user ID
+  author: Author;
   created_at: string;
   image?: string;
   content?: string;
   likes_count?: number;
   comments_count?: number;
   is_ad?: boolean;
+  liked_by_user?: boolean;
 }
 
 const HomeScreen = () => {
@@ -73,6 +82,7 @@ const HomeScreen = () => {
   const fetchUserProfile = async (userId: number) => {
     try {
       const response = await getProfileByUserId(userId);
+      console.log(`Profile for user ${userId}:`, response.data);
       return response.data;
     } catch (error) {
       console.error(`Error fetching profile for user ${userId}:`, error);
@@ -92,21 +102,38 @@ const HomeScreen = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [postsResponse, adsResponse] = await Promise.all([
+      const [postsResponse, adsResponse, likesResponse] = await Promise.all([
         getPosts().catch(() => ({ data: [] })),
-        getAds().catch(() => ({ data: { ads: [] } })),
+        getAds().catch(() => ({ data: [] })),
+        api.get('posts/likes/').catch(() => ({ data: [] })),
       ]);
-      
-      const postsData = postsResponse?.data || [];
-      const adsData = adsResponse?.data?.ads || [];
-      
-      setPosts(postsData);
-      setAds(adsData);
 
-      // Fetch user profiles for all unique users
+      console.log('Posts Response:', postsResponse.data);
+      console.log('Ads Response:', adsResponse.data);
+      console.log('Likes Response:', likesResponse.data);
+
+      const postsData = Array.isArray(postsResponse.data) ? postsResponse.data : [];
+      const adsData = Array.isArray(adsResponse.data) ? adsResponse.data : [];
+
+      const updatedPosts = postsData.map(post => ({
+        ...post,
+        liked_by_user: likesResponse.data.some(like => like.post === post.id),
+      }));
+      const updatedAds = adsData.map(ad => ({
+        ...ad,
+        is_ad: true,
+        liked_by_user: likesResponse.data.some(like => like.post === ad.id),
+      }));
+
+      console.log('Processed Posts:', updatedPosts);
+      console.log('Processed Ads:', updatedAds);
+
+      setPosts(updatedPosts);
+      setAds(updatedAds);
+
       const uniqueUserIds = new Set<number>();
-      postsData.forEach(post => uniqueUserIds.add(post.user));
-      adsData.forEach(ad => ad.user && uniqueUserIds.add(ad.user));
+      updatedPosts.forEach(post => post.author?.id && uniqueUserIds.add(post.author.id));
+      updatedAds.forEach(ad => ad.author?.id && uniqueUserIds.add(ad.author.id));
 
       const profiles: Record<number, UserProfile> = {};
       const profilePromises = Array.from(uniqueUserIds).map(async userId => {
@@ -115,6 +142,7 @@ const HomeScreen = () => {
       });
 
       await Promise.all(profilePromises);
+      console.log('User Profiles:', profiles);
       setUserProfiles(profiles);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -124,6 +152,26 @@ const HomeScreen = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleLikePost = async (postId: number, liked: boolean) => {
+    try {
+      const response = await toggleLike(postId);
+      const status = response.data.status;
+      setPosts(posts.map(post => post.id === postId ? { 
+        ...post, 
+        liked_by_user: status === 'liked', 
+        likes_count: (post.likes_count || 0) + (status === 'liked' ? 1 : -1) 
+      } : post));
+      setAds(ads.map(ad => ad.id === postId ? { 
+        ...ad, 
+        liked_by_user: status === 'liked', 
+        likes_count: (ad.likes_count || 0) + (status === 'liked' ? 1 : -1) 
+      } : ad));
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like status');
     }
   };
 
@@ -205,24 +253,29 @@ const HomeScreen = () => {
   };
 
   const renderPost = (post: Post, isAd: boolean) => {
-    if (!post) return null;
+    if (!post || !post.author || !post.author.id) {
+      console.log('Skipping post due to missing author:', post);
+      return null;
+    }
 
-    const userProfile = userProfiles[post.user] || {
-      id: post.user,
+    const userProfile = userProfiles[post.author.id] || {
+      id: post.author.id,
       user: {
-        id: post.user,
-        username: 'Unknown User',
-        email: '',
+        id: post.author.id,
+        username: post.author.username || 'Unknown User',
+        email: post.author.email || '',
       },
       profile_image: undefined,
     };
+
+    console.log(`Rendering post ${post.id}, author ID: ${post.author.id}, profile:`, userProfile);
 
     return (
       <View key={`${isAd ? 'ad' : 'post'}-${post.id}`} style={styles.postContainer}>
         <View style={styles.postHeader}>
           <TouchableOpacity 
             style={styles.profileImageContainer}
-            onPress={() => navigation.navigate('Profile', { userId: post.user })}
+            onPress={() => navigation.navigate('Profile', { userId: post.author.id })}
           >
             <Image 
               source={userProfile.profile_image 
@@ -233,7 +286,9 @@ const HomeScreen = () => {
             />
           </TouchableOpacity>
           <View style={styles.postHeaderText}>
-            <Text style={styles.username}>{userProfile.user.username}</Text>
+            <Text style={styles.username}>
+              {userProfile.user?.username || post.author.username || 'Unknown User'}
+            </Text>
             <Text style={styles.postTime}>{formatTime(post.created_at)}</Text>
           </View>
           {isAd && (
@@ -269,10 +324,20 @@ const HomeScreen = () => {
 
         <View style={styles.postActions}>
           <View style={styles.actionButtonsLeft}>
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="heart-outline" size={28} color="#94e0b2" />
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleLikePost(post.id, post.liked_by_user || false)}
+            >
+              <Ionicons 
+                name={post.liked_by_user ? "heart" : "heart-outline"} 
+                size={28} 
+                color={post.liked_by_user ? "#ff4d4d" : "#94e0b2"} 
+              />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('Comments', { postId: post.id })}
+            >
               <Ionicons name="chatbubble-outline" size={26} color="#94e0b2" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton}>

@@ -1,15 +1,12 @@
-// === 📁 src/api/api.js ===
-
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../utils/constants';
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE_URL, // e.g., http://192.168.88.85:8000
   timeout: 10000,
 });
 
-// attach token to all requests if available
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('access_token');
   if (token) {
@@ -31,7 +28,6 @@ export const verifyEmail = ({ verification_code }) =>
 export const getUser = (userId) => 
   api.get(`accounts/users/${userId}/`);
 
-// ✅ NEW endpoint: fetch profile by user_id
 export const getProfileByUserId = (userId) => 
   api.get(`accounts/profiles/user/${userId}/`);
 
@@ -45,7 +41,7 @@ export const updateProfile = (profileId, data) =>
     },
   });
 
-export const forgotPassword = ({ email }) =>
+export const forgetPassword = ({ email }) =>
   api.post('accounts/forgot-password/', { email });
 
 export const resetPassword = ({ email, verification_code, new_password }) =>
@@ -58,5 +54,8 @@ export const resetPassword = ({ email, verification_code, new_password }) =>
 // Posts & Ads
 export const getPosts = () => api.get('posts/posts/');
 export const getAds = () => api.get('ads/ads/');
+export const getCommentsForPost = (postId) => api.get(`posts/comments/?post=${postId}`);
+export const addCommentToPost = (postId, text) => api.post('posts/comments/', { post: postId, text });
+export const toggleLike = (postId) => api.post(`posts/likes/${postId}/toggle/`);
 
 export default api;
