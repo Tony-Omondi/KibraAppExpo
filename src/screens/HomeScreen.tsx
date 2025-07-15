@@ -30,7 +30,7 @@ interface UserProfile {
   user?: User;
   user_data?: User; // Handle API's user_data field
   profile_image?: string;
-  profile_picture?: string; // Handle API's profile_picture for user 39
+  profile_picture?: string; // Handle API's profile_picture
   bio?: string;
 }
 

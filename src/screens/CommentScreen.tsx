@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { getCommentsForPost, addCommentToPost, getProfileByUserId } from '../api/api';
@@ -22,9 +23,9 @@ interface User {
 interface UserProfile {
   id: number;
   user?: User;
-  user_data?: User; // Handle API's user_data field
+  user_data?: User;
   profile_image?: string;
-  profile_picture?: string; // Handle API's profile_picture
+  profile_picture?: string;
   bio?: string;
 }
 
@@ -98,13 +99,17 @@ const CommentScreen = () => {
   };
 
   const handleAddComment = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) {
+      Alert.alert('Error', 'Comment cannot be empty');
+      return;
+    }
     try {
       await addCommentToPost(postId, text.trim());
       setText('');
       fetchComments();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding comment for post', postId, ':', error);
+      Alert.alert('Error', `Failed to add comment: ${error.response?.data?.detail || 'Unknown error'}`);
     }
   };
 
