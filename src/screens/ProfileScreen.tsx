@@ -31,12 +31,23 @@ interface User {
   email: string;
 }
 
+interface Post {
+  id: number;
+  title: string;
+  content: string;
+  created_at: string;
+  image?: string;
+}
+
 interface Profile {
   id: number;
   user: User;
   bio?: string;
   location?: string;
   profile_picture?: string;
+  followers_count?: number;
+  following_count?: number;
+  posts?: Post[];
 }
 
 const ProfileScreen = () => {
@@ -82,7 +93,6 @@ const ProfileScreen = () => {
       if (!userIdStr) throw new Error('User not logged in');
       const userId = parseInt(userIdStr, 10);
 
-      // ✅ call new API function:
       const res = await getProfileByUserId(userId);
       setProfile(res.data);
       setFormData({
@@ -301,6 +311,27 @@ const ProfileScreen = () => {
         </TouchableOpacity>
         <Text style={styles.username}>{profile.user?.username}</Text>
         <Text style={styles.email}>{profile.user?.email}</Text>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>
+              {profile.followers_count ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>
+              {profile.following_count ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>
+              {profile.posts?.length ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Posts</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.profileSection}>
@@ -416,6 +447,26 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     marginTop: 5,
+    fontFamily: 'NotoSans-Regular',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'NotoSans-Regular',
+  },
+  statLabel: {
+    color: '#94e0b2',
+    fontSize: 14,
     fontFamily: 'NotoSans-Regular',
   },
   profileSection: {

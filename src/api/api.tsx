@@ -22,11 +22,11 @@ api.interceptors.request.use(async (config) => {
 export const login = (email, password) => 
   api.post('accounts/login/', { email, password });
 
-export const register = (username, email, password) => 
-  api.post('accounts/register/', { username, email, password });
+export const register = (username, email, password1, password2) =>
+  api.post('auth/registration/', { username, email, password1, password2 });
 
-export const verifyEmail = (verification_code) => 
-  api.post('accounts/verify-email/', { verification_code });
+export const verifyEmail = ({ verification_code }) =>
+  api.post('auth/verify-email/', { verification_code });
 
 export const getUser = (userId) => 
   api.get(`accounts/users/${userId}/`);
