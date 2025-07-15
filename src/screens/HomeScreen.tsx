@@ -1,4 +1,5 @@
 // src/screens/HomeScreen.tsx
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -251,7 +252,10 @@ const HomeScreen = () => {
           <Ionicons name="notifications-outline" size={24} color="#94e0b2" />
           <Text style={styles.navText}>Notifications</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton}>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('Profile')}
+        >
           <Ionicons name="person-outline" size={24} color="#94e0b2" />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>

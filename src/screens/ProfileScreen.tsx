@@ -1,4 +1,5 @@
-// src/screens/ProfileScreen.tsx
+// === 📁 src/screens/ProfileScreen.tsx ===
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -16,7 +17,12 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { getProfile, updateProfile, createProfile, getUser } from '../api/api';
+import {
+  getProfileByUserId,
+  updateProfile,
+  createProfile,
+  getUser,
+} from '../api/api';
 import * as Font from 'expo-font';
 
 interface User {
@@ -44,6 +50,7 @@ const ProfileScreen = () => {
     bio: '',
     location: '',
   });
+  const [pickedImage, setPickedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const initialize = async () => {
@@ -51,51 +58,95 @@ const ProfileScreen = () => {
         'NotoSans-Regular': require('../../assets/fonts/NotoSans-Regular.ttf'),
       });
       setFontsLoaded(true);
-      
+
       if (Platform.OS !== 'web') {
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission required',
+            'We need camera roll permissions to upload images'
+          );
+        }
       }
-      
+
       await fetchUserProfile();
     };
+
     initialize();
   }, []);
 
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
-      const userId = await AsyncStorage.getItem('user_id');
-      if (!userId) throw new Error('User not logged in');
+      const userIdStr = await AsyncStorage.getItem('user_id');
+      if (!userIdStr) throw new Error('User not logged in');
+      const userId = parseInt(userIdStr, 10);
 
-      try {
-        // Try to get existing profile
-        const response = await getProfile(userId);
-        setProfile(response.data);
-        setFormData({
-          bio: response.data.bio || '',
-          location: response.data.location || '',
-        });
-      } catch (err) {
-        // If profile doesn't exist (404), create new one
-        if (err.response?.status === 404) {
-          const userData = await getUser(userId);
-          const newProfile = {
-            user: userId,
-            bio: '',
-            location: '',
-          };
-          const createdProfile = await createProfile(newProfile);
-          setProfile({
-            ...createdProfile.data,
-            user: userData.data
-          });
-        } else {
-          throw err;
-        }
+      // ✅ call new API function:
+      const res = await getProfileByUserId(userId);
+      setProfile(res.data);
+      setFormData({
+        bio: res.data.bio || '',
+        location: res.data.location || '',
+      });
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        console.log('No profile found. Prompt user to create.');
+        setProfile(null);
+      } else {
+        console.error('Fetch profile error:', err);
+        setError(err.message || 'Failed to load profile.');
       }
-    } catch (err) {
-      console.error('Profile error:', err);
-      setError(err.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateProfile = async () => {
+    try {
+      setLoading(true);
+
+      const userIdStr = await AsyncStorage.getItem('user_id');
+      if (!userIdStr) throw new Error('User not logged in');
+      const userId = parseInt(userIdStr, 10);
+
+      let newProfileData: any = {
+        user: userId,
+        bio: formData.bio,
+        location: formData.location,
+      };
+
+      if (pickedImage) {
+        const data = new FormData();
+        data.append('user', String(userId));
+        data.append('bio', formData.bio);
+        data.append('location', formData.location);
+        data.append('profile_picture', {
+          uri: pickedImage,
+          type: 'image/jpeg',
+          name: 'profile.jpg',
+        } as any);
+
+        const res = await createProfile(data);
+        const userData = await getUser(userId);
+        setProfile({
+          ...res.data,
+          user: userData.data,
+        });
+      } else {
+        const res = await createProfile(newProfileData);
+        const userData = await getUser(userId);
+        setProfile({
+          ...res.data,
+          user: userData.data,
+        });
+      }
+
+      Alert.alert('Success', 'Profile created successfully!');
+      setEditMode(false);
+    } catch (err: any) {
+      console.error('Create profile error:', err?.response || err);
+      Alert.alert('Error', 'Failed to create profile.');
     } finally {
       setLoading(false);
     }
@@ -103,17 +154,35 @@ const ProfileScreen = () => {
 
   const handleSaveProfile = async () => {
     try {
+      if (!profile) {
+        Alert.alert('Error', 'No profile loaded.');
+        return;
+      }
+
       setLoading(true);
-      const userId = await AsyncStorage.getItem('user_id');
-      if (!userId) throw new Error('User not logged in');
-      
-      await updateProfile(userId, formData);
-      setProfile(prev => prev ? {...prev, ...formData} : null);
+
+      if (pickedImage) {
+        const data = new FormData();
+        data.append('bio', formData.bio);
+        data.append('location', formData.location);
+        data.append('profile_picture', {
+          uri: pickedImage,
+          type: 'image/jpeg',
+          name: 'profile.jpg',
+        } as any);
+
+        const response = await updateProfile(profile.id, data);
+        setProfile(response.data);
+      } else {
+        const response = await updateProfile(profile.id, formData);
+        setProfile(response.data);
+      }
+
       setEditMode(false);
-      Alert.alert('Success', 'Profile updated successfully');
-    } catch (err) {
-      console.error('Save error:', err);
-      Alert.alert('Error', 'Failed to save profile');
+      Alert.alert('Success', 'Profile updated!');
+    } catch (err: any) {
+      console.error('Save profile error:', err?.response || err);
+      Alert.alert('Error', 'Failed to save profile.');
     } finally {
       setLoading(false);
     }
@@ -130,19 +199,10 @@ const ProfileScreen = () => {
 
       if (result.canceled || !result.assets?.[0]?.uri) return;
 
-      const userId = await AsyncStorage.getItem('user_id');
-      const data = new FormData();
-      data.append('profile_picture', {
-        uri: result.assets[0].uri,
-        type: 'image/jpeg',
-        name: 'profile.jpg',
-      } as any);
-
-      const response = await updateProfile(userId, data);
-      setProfile(response.data);
+      setPickedImage(result.assets[0].uri);
     } catch (err) {
-      console.error('Image error:', err);
-      Alert.alert('Error', 'Failed to update profile picture');
+      console.error('Image picker error:', err);
+      Alert.alert('Error', 'Failed to pick image.');
     }
   };
 
@@ -167,12 +227,57 @@ const ProfileScreen = () => {
 
   if (!profile) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Profile not found</Text>
-        <TouchableOpacity style={styles.button} onPress={fetchUserProfile}>
-          <Text style={styles.buttonText}>Try Again</Text>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.sectionTitle}>Create Your Profile</Text>
+
+        <TouchableOpacity onPress={pickImage}>
+          <Image
+            source={
+              pickedImage
+                ? { uri: pickedImage }
+                : require('../../assets/_.jpeg')
+            }
+            style={styles.profileImage}
+          />
+          <View style={styles.cameraIcon}>
+            <Ionicons name="camera" size={20} color="white" />
+          </View>
         </TouchableOpacity>
-      </View>
+
+        <View style={styles.profileSection}>
+          <Text style={styles.sectionTitle}>Bio</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.bio}
+            onChangeText={(text) =>
+              setFormData({ ...formData, bio: text })
+            }
+            placeholder="Tell about yourself"
+            placeholderTextColor="#aaa"
+            multiline
+          />
+        </View>
+
+        <View style={styles.profileSection}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.location}
+            onChangeText={(text) =>
+              setFormData({ ...formData, location: text })
+            }
+            placeholder="Your location"
+            placeholderTextColor="#aaa"
+          />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, styles.saveButton]}
+          onPress={handleCreateProfile}
+        >
+          <Text style={styles.buttonText}>Create Profile</Text>
+        </TouchableOpacity>
+      </ScrollView>
     );
   }
 
@@ -181,17 +286,21 @@ const ProfileScreen = () => {
       <View style={styles.profileHeader}>
         <TouchableOpacity onPress={pickImage}>
           <Image
-            source={profile.profile_picture 
-              ? { uri: profile.profile_picture } 
-              : require('../../assets/_.jpeg')}
+            source={
+              pickedImage
+                ? { uri: pickedImage }
+                : profile.profile_picture
+                ? { uri: profile.profile_picture }
+                : require('../../assets/_.jpeg')
+            }
             style={styles.profileImage}
           />
           <View style={styles.cameraIcon}>
             <Ionicons name="camera" size={20} color="white" />
           </View>
         </TouchableOpacity>
-        <Text style={styles.username}>{profile.user.username}</Text>
-        <Text style={styles.email}>{profile.user.email}</Text>
+        <Text style={styles.username}>{profile.user?.username}</Text>
+        <Text style={styles.email}>{profile.user?.email}</Text>
       </View>
 
       <View style={styles.profileSection}>
@@ -200,14 +309,16 @@ const ProfileScreen = () => {
           <TextInput
             style={styles.input}
             value={formData.bio}
-            onChangeText={text => setFormData({...formData, bio: text})}
+            onChangeText={(text) =>
+              setFormData({ ...formData, bio: text })
+            }
             placeholder="Tell about yourself"
             placeholderTextColor="#aaa"
             multiline
           />
         ) : (
           <Text style={styles.sectionContent}>
-            {profile.bio || 'No bio added yet'}
+            {profile.bio || 'No bio added yet.'}
           </Text>
         )}
       </View>
@@ -218,13 +329,15 @@ const ProfileScreen = () => {
           <TextInput
             style={styles.input}
             value={formData.location}
-            onChangeText={text => setFormData({...formData, location: text})}
+            onChangeText={(text) =>
+              setFormData({ ...formData, location: text })
+            }
             placeholder="Your location"
             placeholderTextColor="#aaa"
           />
         ) : (
           <Text style={styles.sectionContent}>
-            {profile.location || 'No location added yet'}
+            {profile.location || 'No location added yet.'}
           </Text>
         )}
       </View>
@@ -232,28 +345,29 @@ const ProfileScreen = () => {
       <View style={styles.buttonGroup}>
         {editMode ? (
           <>
-            <TouchableOpacity 
-              style={[styles.button, styles.saveButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.saveButton]}
               onPress={handleSaveProfile}
             >
               <Text style={styles.buttonText}>Save Changes</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.button, styles.cancelButton]} 
-              onPress={() => setEditMode(false)}
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => {
+                setEditMode(false);
+                setPickedImage(null);
+              }}
             >
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
           </>
         ) : (
-          <>
-            <TouchableOpacity 
-              style={[styles.button, styles.editButton]} 
-              onPress={() => setEditMode(true)}
-            >
-              <Text style={styles.buttonText}>Edit Profile</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity
+            style={[styles.button, styles.editButton]}
+            onPress={() => setEditMode(true)}
+          >
+            <Text style={styles.buttonText}>Edit Profile</Text>
+          </TouchableOpacity>
         )}
       </View>
     </ScrollView>
