@@ -31,14 +31,6 @@ interface User {
   email: string;
 }
 
-interface Post {
-  id: number;
-  title: string;
-  content: string;
-  created_at: string;
-  image?: string;
-}
-
 interface Profile {
   id: number;
   user: User;
@@ -47,8 +39,10 @@ interface Profile {
   profile_picture?: string;
   followers_count?: number;
   following_count?: number;
-  posts?: Post[];
+  posts?: any[];
 }
+
+const BACKEND_URL = 'http://your-backend-domain.com';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -94,17 +88,22 @@ const ProfileScreen = () => {
       const userId = parseInt(userIdStr, 10);
 
       const res = await getProfileByUserId(userId);
-      setProfile(res.data);
+      console.log('✅ Profile API response:', res.data);
+
+      setProfile({
+        ...res.data,
+        user: res.data.user_data,
+      });
+
       setFormData({
         bio: res.data.bio || '',
         location: res.data.location || '',
       });
     } catch (err: any) {
+      console.error('Fetch profile error:', err);
       if (err?.response?.status === 404) {
-        console.log('No profile found. Prompt user to create.');
         setProfile(null);
       } else {
-        console.error('Fetch profile error:', err);
         setError(err.message || 'Failed to load profile.');
       }
     } finally {
@@ -119,12 +118,6 @@ const ProfileScreen = () => {
       const userIdStr = await AsyncStorage.getItem('user_id');
       if (!userIdStr) throw new Error('User not logged in');
       const userId = parseInt(userIdStr, 10);
-
-      let newProfileData: any = {
-        user: userId,
-        bio: formData.bio,
-        location: formData.location,
-      };
 
       if (pickedImage) {
         const data = new FormData();
@@ -144,7 +137,11 @@ const ProfileScreen = () => {
           user: userData.data,
         });
       } else {
-        const res = await createProfile(newProfileData);
+        const res = await createProfile({
+          user: userId,
+          bio: formData.bio,
+          location: formData.location,
+        });
         const userData = await getUser(userId);
         setProfile({
           ...res.data,
@@ -182,10 +179,16 @@ const ProfileScreen = () => {
         } as any);
 
         const response = await updateProfile(profile.id, data);
-        setProfile(response.data);
+        setProfile({
+          ...response.data,
+          user: response.data.user_data || profile.user,
+        });
       } else {
         const response = await updateProfile(profile.id, formData);
-        setProfile(response.data);
+        setProfile({
+          ...response.data,
+          user: response.data.user_data || profile.user,
+        });
       }
 
       setEditMode(false);
@@ -239,54 +242,6 @@ const ProfileScreen = () => {
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.sectionTitle}>Create Your Profile</Text>
-
-        <TouchableOpacity onPress={pickImage}>
-          <Image
-            source={
-              pickedImage
-                ? { uri: pickedImage }
-                : require('../../assets/_.jpeg')
-            }
-            style={styles.profileImage}
-          />
-          <View style={styles.cameraIcon}>
-            <Ionicons name="camera" size={20} color="white" />
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.profileSection}>
-          <Text style={styles.sectionTitle}>Bio</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.bio}
-            onChangeText={(text) =>
-              setFormData({ ...formData, bio: text })
-            }
-            placeholder="Tell about yourself"
-            placeholderTextColor="#aaa"
-            multiline
-          />
-        </View>
-
-        <View style={styles.profileSection}>
-          <Text style={styles.sectionTitle}>Location</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.location}
-            onChangeText={(text) =>
-              setFormData({ ...formData, location: text })
-            }
-            placeholder="Your location"
-            placeholderTextColor="#aaa"
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.button, styles.saveButton]}
-          onPress={handleCreateProfile}
-        >
-          <Text style={styles.buttonText}>Create Profile</Text>
-        </TouchableOpacity>
       </ScrollView>
     );
   }
@@ -470,7 +425,7 @@ const styles = StyleSheet.create({
     fontFamily: 'NotoSans-Regular',
   },
   profileSection: {
-    marginBottom: 25,
+    marginBottom: 20,
   },
   sectionTitle: {
     color: '#94e0b2',

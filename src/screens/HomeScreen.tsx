@@ -1,5 +1,4 @@
 // src/screens/HomeScreen.tsx
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -10,24 +9,34 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  ImageBackground,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
-import { getPosts, getAds } from '../api/api';
+import { getPosts, getAds, getProfileByUserId } from '../api/api';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface User {
-  name?: string;
+  id: number;
+  username: string;
+  email: string;
+}
+
+interface UserProfile {
+  id: number;
+  user: User;
   profile_image?: string;
+  bio?: string;
 }
 
 interface Post {
   id: number;
-  user?: User;
-  created_at?: string;
+  user: number; // user ID
+  created_at: string;
   image?: string;
   content?: string;
   likes_count?: number;
@@ -40,6 +49,7 @@ const HomeScreen = () => {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [ads, setAds] = useState<Post[]>([]);
+  const [userProfiles, setUserProfiles] = useState<Record<number, UserProfile>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -52,10 +62,30 @@ const HomeScreen = () => {
     try {
       await Font.loadAsync({
         'NotoSans-Regular': require('../../assets/fonts/NotoSans-Regular.ttf'),
+        'NotoSans-SemiBold': require('../../assets/fonts/NotoSans-Regular.ttf'),
       });
       setFontsLoaded(true);
     } catch (error) {
       console.error('Error loading fonts:', error);
+    }
+  };
+
+  const fetchUserProfile = async (userId: number) => {
+    try {
+      const response = await getProfileByUserId(userId);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching profile for user ${userId}:`, error);
+      return {
+        id: userId,
+        user: {
+          id: userId,
+          username: 'Unknown User',
+          email: '',
+        },
+        profile_image: undefined,
+        bio: '',
+      };
     }
   };
 
@@ -67,8 +97,25 @@ const HomeScreen = () => {
         getAds().catch(() => ({ data: { ads: [] } })),
       ]);
       
-      setPosts(postsResponse?.data || []);
-      setAds(adsResponse?.data?.ads || []);
+      const postsData = postsResponse?.data || [];
+      const adsData = adsResponse?.data?.ads || [];
+      
+      setPosts(postsData);
+      setAds(adsData);
+
+      // Fetch user profiles for all unique users
+      const uniqueUserIds = new Set<number>();
+      postsData.forEach(post => uniqueUserIds.add(post.user));
+      adsData.forEach(ad => ad.user && uniqueUserIds.add(ad.user));
+
+      const profiles: Record<number, UserProfile> = {};
+      const profilePromises = Array.from(uniqueUserIds).map(async userId => {
+        const profile = await fetchUserProfile(userId);
+        profiles[userId] = profile;
+      });
+
+      await Promise.all(profilePromises);
+      setUserProfiles(profiles);
     } catch (error) {
       console.error('Error fetching data:', error);
       Alert.alert('Error', 'Failed to load posts and ads');
@@ -108,9 +155,9 @@ const HomeScreen = () => {
       const diffInHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
       
       if (diffInHours < 24) {
-        return `${Math.floor(diffInHours)}h`;
+        return `${Math.floor(diffInHours)}h ago`;
       } else {
-        return `${Math.floor(diffInHours / 24)}d`;
+        return `${Math.floor(diffInHours / 24)}d ago`;
       }
     } catch {
       return 'Just now';
@@ -149,6 +196,10 @@ const HomeScreen = () => {
     return mergedContent.length > 0 ? mergedContent : (
       <View style={styles.emptyState}>
         <Text style={styles.emptyStateText}>No posts available</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={20} color="#94e0b2" />
+          <Text style={styles.refreshButtonText}>Refresh</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -156,16 +207,33 @@ const HomeScreen = () => {
   const renderPost = (post: Post, isAd: boolean) => {
     if (!post) return null;
 
+    const userProfile = userProfiles[post.user] || {
+      id: post.user,
+      user: {
+        id: post.user,
+        username: 'Unknown User',
+        email: '',
+      },
+      profile_image: undefined,
+    };
+
     return (
-      <View key={post.id} style={styles.postContainer}>
+      <View key={`${isAd ? 'ad' : 'post'}-${post.id}`} style={styles.postContainer}>
         <View style={styles.postHeader}>
-          <Image 
-            source={{ uri: post.user?.profile_image || 'https://via.placeholder.com/150' }} 
-            style={styles.profileImage}
-            defaultSource={require('../../assets/_.jpeg')}
-          />
+          <TouchableOpacity 
+            style={styles.profileImageContainer}
+            onPress={() => navigation.navigate('Profile', { userId: post.user })}
+          >
+            <Image 
+              source={userProfile.profile_image 
+                ? { uri: userProfile.profile_image } 
+                : require('../../assets/_.jpeg')
+              }
+              style={styles.profileImage}
+            />
+          </TouchableOpacity>
           <View style={styles.postHeaderText}>
-            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
+            <Text style={styles.username}>{userProfile.user.username}</Text>
             <Text style={styles.postTime}>{formatTime(post.created_at)}</Text>
           </View>
           {isAd && (
@@ -173,35 +241,49 @@ const HomeScreen = () => {
               <Text style={styles.sponsoredText}>Sponsored</Text>
             </View>
           )}
+          <TouchableOpacity style={styles.moreButton}>
+            <Ionicons name="ellipsis-horizontal" size={20} color="#94e0b2" />
+          </TouchableOpacity>
         </View>
 
         {post.image && (
-          <ImageBackground
-            source={{ uri: post.image }}
-            style={styles.postImage}
-            resizeMode="cover"
-          >
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: post.image }}
+              style={styles.postImage}
+              resizeMode="cover"
+            />
             {isAd && (
               <View style={styles.adLabel}>
                 <Text style={styles.adLabelText}>Ad</Text>
               </View>
             )}
-          </ImageBackground>
+          </View>
         )}
 
         {post.content && (
-          <Text style={styles.postContent}>{post.content}</Text>
+          <Text style={styles.postContent} numberOfLines={3} ellipsizeMode="tail">
+            {post.content}
+          </Text>
         )}
 
         <View style={styles.postActions}>
-          <View style={styles.actionButton}>
-            <Ionicons name="heart-outline" size={24} color="#94e0b2" />
-            <Text style={styles.actionText}>{post.likes_count || 0}</Text>
+          <View style={styles.actionButtonsLeft}>
+            <TouchableOpacity style={styles.actionButton}>
+              <Ionicons name="heart-outline" size={28} color="#94e0b2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton}>
+              <Ionicons name="chatbubble-outline" size={26} color="#94e0b2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton}>
+              <Ionicons name="paper-plane-outline" size={26} color="#94e0b2" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.actionButton}>
-            <Ionicons name="chatbubble-outline" size={24} color="#94e0b2" />
-            <Text style={styles.actionText}>{post.comments_count || 0}</Text>
-          </View>
+        </View>
+
+        <View style={styles.postStats}>
+          <Text style={styles.statText}>{post.likes_count || 0} likes</Text>
+          <Text style={styles.statText}>{post.comments_count || 0} comments</Text>
         </View>
       </View>
     );
@@ -218,15 +300,18 @@ const HomeScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.topHeader}>
-        <Ionicons name="menu" size={24} color="white" />
+        <TouchableOpacity>
+          <Ionicons name="menu" size={28} color="white" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Kibra</Text>
         <TouchableOpacity onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="white" />
+          <Ionicons name="log-out-outline" size={28} color="white" />
         </TouchableOpacity>
       </View>
 
       <ScrollView 
         style={styles.postsContainer}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -241,22 +326,26 @@ const HomeScreen = () => {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navButtonActive}>
-          <Ionicons name="home" size={24} color="white" />
+          <Ionicons name="home" size={26} color="white" />
           <Text style={styles.navTextActive}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton}>
-          <Ionicons name="newspaper-outline" size={24} color="#94e0b2" />
-          <Text style={styles.navText}>News</Text>
+          <Ionicons name="search" size={26} color="#94e0b2" />
+          <Text style={styles.navText}>Discover</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton}>
-          <Ionicons name="notifications-outline" size={24} color="#94e0b2" />
-          <Text style={styles.navText}>Notifications</Text>
+          <Ionicons name="add-circle-outline" size={26} color="#94e0b2" />
+          <Text style={styles.navText}>Create</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navButton}>
+          <Ionicons name="notifications-outline" size={26} color="#94e0b2" />
+          <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
           onPress={() => navigation.navigate('Profile')}
         >
-          <Ionicons name="person-outline" size={24} color="#94e0b2" />
+          <Ionicons name="person-outline" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
@@ -280,45 +369,73 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    marginTop: 100,
   },
   emptyStateText: {
     color: '#94e0b2',
     fontSize: 16,
+    fontFamily: 'NotoSans-Regular',
+    marginBottom: 10,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#94e0b2',
+  },
+  refreshButtonText: {
+    color: '#94e0b2',
+    marginLeft: 5,
     fontFamily: 'NotoSans-Regular',
   },
   topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 15,
     backgroundColor: '#122118',
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.5,
     borderBottomColor: '#264532',
   },
   headerTitle: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
-    fontFamily: 'NotoSans-Regular',
+    fontFamily: 'NotoSans-SemiBold',
   },
   postsContainer: {
     flex: 1,
     marginBottom: 60,
   },
   postContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
     backgroundColor: '#122118',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#264532',
+    borderTopWidth: 0.5,
+    borderTopColor: '#264532',
   },
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
   },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  profileImageContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: '#94e0b2',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+  },
+  profileImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#2a4133',
   },
   postHeaderText: {
@@ -327,38 +444,47 @@ const styles = StyleSheet.create({
   username: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '500',
-    fontFamily: 'NotoSans-Regular',
+    fontWeight: '600',
+    fontFamily: 'NotoSans-SemiBold',
   },
   postTime: {
     color: '#94e0b2',
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'NotoSans-Regular',
+    marginTop: 2,
+  },
+  moreButton: {
+    padding: 5,
   },
   sponsoredBadge: {
     backgroundColor: '#2a4133',
     borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginRight: 10,
   },
   sponsoredText: {
     color: '#94e0b2',
     fontSize: 12,
     fontFamily: 'NotoSans-Regular',
   },
-  postImage: {
-    width: '100%',
-    aspectRatio: 3/2,
-    justifyContent: 'flex-end',
+  imageContainer: {
+    position: 'relative',
     backgroundColor: '#2a4133',
   },
+  postImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH,
+  },
   adLabel: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    margin: 8,
+    position: 'absolute',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    margin: 10,
     borderRadius: 4,
-    alignSelf: 'flex-start',
+    top: 0,
+    left: 0,
   },
   adLabelText: {
     color: 'white',
@@ -367,34 +493,45 @@ const styles = StyleSheet.create({
   },
   postContent: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 15,
     padding: 12,
+    paddingTop: 8,
     fontFamily: 'NotoSans-Regular',
+    lineHeight: 20,
   },
   postActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingBottom: 8,
   },
-  actionButton: {
+  actionButtonsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  actionText: {
+  actionButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  postStats: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  statText: {
     color: '#94e0b2',
-    fontSize: 13,
-    fontWeight: 'bold',
+    fontSize: 14,
     fontFamily: 'NotoSans-Regular',
+    marginRight: 15,
   },
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     backgroundColor: '#1b3124',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+    borderTopWidth: 0.5,
     borderTopColor: '#264532',
     position: 'absolute',
     bottom: 0,
@@ -403,11 +540,13 @@ const styles = StyleSheet.create({
   },
   navButton: {
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   navButtonActive: {
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   navText: {
     color: '#94e0b2',
