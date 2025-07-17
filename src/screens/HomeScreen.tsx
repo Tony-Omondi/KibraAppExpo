@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
-import api, { getPosts, getAds, getProfileByUserId, toggleLike } from '../api/api';
+import api, { getPosts, getAds, getProfileByUserId, toggleLike, getNotifications } from '../api/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,9 +28,9 @@ interface User {
 interface UserProfile {
   id: number;
   user?: User;
-  user_data?: User; // Handle API's user_data field
+  user_data?: User;
   profile_image?: string;
-  profile_picture?: string; // Handle API's profile_picture
+  profile_picture?: string;
   bio?: string;
 }
 
@@ -55,6 +55,11 @@ interface Post {
   liked_by_user?: boolean;
 }
 
+interface Notification {
+  id: number;
+  is_read: boolean;
+}
+
 const HomeScreen = () => {
   const navigation = useNavigation();
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -63,12 +68,12 @@ const HomeScreen = () => {
   const [userProfiles, setUserProfiles] = useState<Record<number, UserProfile>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     loadFonts();
     fetchData();
 
-    // Add listener to refresh posts when returning to HomeScreen
     const unsubscribe = navigation.addListener('focus', () => {
       fetchData();
     });
@@ -111,18 +116,22 @@ const HomeScreen = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [postsResponse, adsResponse, likesResponse] = await Promise.all([
+      const token = await AsyncStorage.getItem('access_token');
+      const [postsResponse, adsResponse, likesResponse, notificationsResponse] = await Promise.all([
         getPosts().catch(() => ({ data: [] })),
         getAds().catch(() => ({ data: [] })),
         api.get('posts/likes/').catch(() => ({ data: [] })),
+        token ? getNotifications().catch(() => ({ data: [] })) : { data: [] },
       ]);
 
       console.log('Posts Response:', postsResponse.data);
       console.log('Ads Response:', adsResponse.data);
       console.log('Likes Response:', likesResponse.data);
+      console.log('Notifications Response:', notificationsResponse.data);
 
       const postsData = Array.isArray(postsResponse.data) ? postsResponse.data : [];
       const adsData = Array.isArray(adsResponse.data) ? adsResponse.data : [];
+      const notificationsData = Array.isArray(notificationsResponse.data) ? notificationsResponse.data : [];
 
       const updatedPosts = postsData.map(post => ({
         ...post,
@@ -134,11 +143,9 @@ const HomeScreen = () => {
         liked_by_user: likesResponse.data.some(like => like.post === ad.id),
       }));
 
-      console.log('Processed Posts:', updatedPosts);
-      console.log('Processed Ads:', updatedAds);
-
       setPosts(updatedPosts);
       setAds(updatedAds);
+      setUnreadCount(notificationsData.filter((notification: Notification) => !notification.is_read).length);
 
       const uniqueUserIds = new Set<number>();
       updatedPosts.forEach(post => post.author?.id && uniqueUserIds.add(post.author.id));
@@ -155,9 +162,10 @@ const HomeScreen = () => {
       setUserProfiles(profiles);
     } catch (error) {
       console.error('Error fetching data:', error);
-      Alert.alert('Error', 'Failed to load posts and ads');
+      Alert.alert('Error', 'Failed to load posts, ads, or notifications');
       setPosts([]);
       setAds([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -178,6 +186,8 @@ const HomeScreen = () => {
         liked_by_user: status === 'liked', 
         likes_count: (ad.likes_count || 0) + (status === 'liked' ? 1 : -1) 
       } : ad));
+      // Refresh notifications after liking/unliking
+      await fetchData();
     } catch (error) {
       console.error('Error toggling like for post', postId, ':', error);
       Alert.alert('Error', 'Failed to update like status');
@@ -205,12 +215,10 @@ const HomeScreen = () => {
 
   const formatTime = (dateString?: string) => {
     if (!dateString) return 'Just now';
-    
     try {
       const date = new Date(dateString);
       const now = new Date();
       const diffInHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
-      
       if (diffInHours < 24) {
         return `${Math.floor(diffInHours)}h ago`;
       } else {
@@ -233,7 +241,7 @@ const HomeScreen = () => {
     const mergedContent = [];
     let postIndex = 0;
     let adIndex = 0;
-    
+
     while (postIndex < posts.length || adIndex < ads.length) {
       if (postIndex < posts.length) {
         mergedContent.push(renderPost(posts[postIndex], false));
@@ -243,7 +251,6 @@ const HomeScreen = () => {
         mergedContent.push(renderPost(posts[postIndex], false));
         postIndex++;
       }
-      
       if (adIndex < ads.length) {
         mergedContent.push(renderPost({ ...ads[adIndex], is_ad: true }, true));
         adIndex++;
@@ -418,8 +425,20 @@ const HomeScreen = () => {
           <Ionicons name="add-circle-outline" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Create</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton}>
-          <Ionicons name="notifications-outline" size={26} color="#94e0b2" />
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('Notifications')}
+        >
+          <View style={styles.iconContainer}>
+            <Ionicons name="notifications-outline" size={26} color="#94e0b2" />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -483,7 +502,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: 'white',
     fontSize: 22,
-    fontWeight: 'bold',
     fontFamily: 'NotoSans-SemiBold',
   },
   postsContainer: {
@@ -525,7 +543,6 @@ const styles = StyleSheet.create({
   username: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
     fontFamily: 'NotoSans-SemiBold',
   },
   postTime: {
@@ -640,6 +657,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontFamily: 'NotoSans-Regular',
+  },
+  iconContainer: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#ff4d4d',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontFamily: 'NotoSans-SemiBold',
+    textAlign: 'center',
   },
 });
 

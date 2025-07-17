@@ -60,6 +60,22 @@ export const updateProfile = (profileId: number, data: any) =>
     },
   });
 
+export const followUser = (followedId: number) =>
+  api.post('accounts/follows/follow/', { followed_id: followedId });
+
+export const unfollowUser = (followedId: number) =>
+  api.post('accounts/follows/unfollow/', { followed_id: followedId });
+
+// Notifications APIs
+export const getNotifications = () =>
+  api.get('notifications/notifications/');
+
+export const markNotificationAsRead = (notificationId: number) =>
+  api.post(`notifications/notifications/${notificationId}/mark_as_read/`);
+
+export const markAllNotificationsAsRead = () =>
+  api.post('notifications/notifications/mark_all_as_read/');
+
 export const forgetPassword = ({ email }: { email: string }) =>
   api.post('accounts/forgot-password/', { email });
 
