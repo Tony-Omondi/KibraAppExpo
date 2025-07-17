@@ -87,5 +87,11 @@ export const addCommentToPost = (postId: number, text: string) =>
   api.post('posts/comments/', { post: postId, text });
 export const toggleLike = (postId: number) =>
   api.post(`posts/likes/${postId}/toggle/`);
+export const createPost = (data: FormData) =>
+  api.post('posts/posts/', data, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
 
 export default api;

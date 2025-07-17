@@ -67,7 +67,14 @@ const HomeScreen = () => {
   useEffect(() => {
     loadFonts();
     fetchData();
-  }, []);
+
+    // Add listener to refresh posts when returning to HomeScreen
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const loadFonts = async () => {
     try {
@@ -404,7 +411,10 @@ const HomeScreen = () => {
           <Ionicons name="search" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Discover</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton}>
+        <TouchableOpacity 
+          style={styles.navButton}
+          onPress={() => navigation.navigate('CreatePost')}
+        >
           <Ionicons name="add-circle-outline" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Create</Text>
         </TouchableOpacity>

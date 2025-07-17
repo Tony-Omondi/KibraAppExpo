@@ -13,6 +13,8 @@ import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import CreatePostScreen from '../screens/CreatePostScreen'; // <-- Add this
+
 
 const Stack = createNativeStackNavigator();
 
@@ -31,6 +33,8 @@ const AppNavigator = () => {
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="CreatePost" component={CreatePostScreen} /> {/* <-- Add this */}
+
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
