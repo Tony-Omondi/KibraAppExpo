@@ -186,7 +186,6 @@ const HomeScreen = () => {
         liked_by_user: status === 'liked', 
         likes_count: (ad.likes_count || 0) + (status === 'liked' ? 1 : -1) 
       } : ad));
-      // Refresh notifications after liking/unliking
       await fetchData();
     } catch (error) {
       console.error('Error toggling like for post', postId, ':', error);
@@ -414,21 +413,15 @@ const HomeScreen = () => {
           <Ionicons name="home" size={26} color="white" />
           <Text style={styles.navTextActive}>Home</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton}>
-          <Ionicons name="search" size={26} color="#94e0b2" />
-          <Text style={styles.navText}>Discover</Text>
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Marketplace')}>
+          <Ionicons name="cart-outline" size={26} color="#94e0b2" />
+          <Text style={styles.navText}>Marketplace</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navButton}
-          onPress={() => navigation.navigate('CreatePost')}
-        >
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('CreatePost')}>
           <Ionicons name="add-circle-outline" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Create</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.navigate('Notifications')}
-        >
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Notifications')}>
           <View style={styles.iconContainer}>
             <Ionicons name="notifications-outline" size={26} color="#94e0b2" />
             {unreadCount > 0 && (
@@ -441,10 +434,7 @@ const HomeScreen = () => {
           </View>
           <Text style={styles.navText}>Alerts</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => navigation.navigate('Profile')}
-        >
+        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Profile')}>
           <Ionicons name="person-outline" size={26} color="#94e0b2" />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>

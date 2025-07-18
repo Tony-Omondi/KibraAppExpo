@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "kibraappexpo",
+    "scheme": "kibraconnect",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,14 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to take photos.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photos for uploading images.",
-        "NSLocationWhenInUseUsageDescription": "This app uses your location to show relevant information nearby."
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to show relevant information nearby.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "kibraconnect"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -23,11 +30,6 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "INTERNET",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
         "INTERNET",
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
